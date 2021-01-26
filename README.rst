@@ -12,7 +12,7 @@ there are no C analogues to calling ``gc.disable``, ``gc.enable`` and so on
 
 .. __: https://github.com/python/cpython/blob/master/Modules/gcmodule.c
 
-.. __: The function called by ``gc.disable`` in the C source code is
+.. [#] The function called by ``gc.disable`` in the C source code is
    `gc_disable_impl`__ and is thus not part of the public API.
 
 .. __: https://github.com/python/cpython/blob/master/Modules/gcmodule.c#L1499
