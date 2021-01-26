@@ -5,7 +5,7 @@
 
 #ifndef GCHELPERS_H
 #define GCHELPERS_H
-
+//py_gch.h
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -60,6 +60,12 @@ static PyObject *GCHELPERS_GC_DISABLE = NULL;
  * note that `gc_disable_impl`, `gc_enable_impl` defined in `gcmodule.c` which
  * disable and enable garbage collection, respectively, both return `Py_None`.
  */
+
+#define PyGCH_gc_enable _XBI_TOKEN_PASTE(GCHELPERS_UNIQ_PREFIX, _gch_gc_enable)
+
+static void PyGCH_gc_enable(void) {
+
+}
 
 #define PY_GC_DISABLE_STR "PY_GC_DISABLE"
 /**

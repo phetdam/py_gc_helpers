@@ -1,7 +1,7 @@
 .. README.rst for py_gc_helpers
 
-py_gc_helpers
-=============
+py_gch
+======
 
 Macros for enabling/disabling Python garbage collection from C extension code.
 
