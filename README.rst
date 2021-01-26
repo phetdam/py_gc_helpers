@@ -12,7 +12,6 @@ there are no C analogues to calling ``gc.disable``, ``gc.enable`` and so on
 
 .. __: https://github.com/python/cpython/blob/master/Modules/gcmodule.c
 
-.. [#] The function called by ``gc.disable`` in the C source code is
-   `gc_disable_impl`__ and is thus not part of the public API.
+.. [#] ``gc.disable`` calls `gc_disable_impl`__, which is static.
 
 .. __: https://github.com/python/cpython/blob/master/Modules/gcmodule.c#L1499
