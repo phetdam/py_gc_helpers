@@ -10,7 +10,7 @@
  * `cpython/Modules/gcmodule.c`) which is why this header file was created.
  * 
  * @note `gc_disable_impl`, `gc_enable_impl` defined in `gcmodule.c` which
- *    disable and enable garbage collection, respectively, return `Py_None`.
+ *     disable and enable garbage collection, respectively, return `Py_None`.
  */
 
 #ifndef PY_GCH_H
@@ -112,7 +112,7 @@ int PyGCH_gc_member_unique_import(char const *member_name, PyObject **dest) {
  * Sets a Python exception and returns `NULL` if `gc` or `gc.enable` cannot be
  * imported.
  * 
- * @returns Borrowed reference to `Py_None` on success, `NULL` on failure.
+ * @returns New reference to `Py_None` on success, `NULL` on failure.
  */
 PyObject *PyGCH_gc_enable(void) {
   // get gc.enable if PyGCH_enable_o is NULL. exception set on error
@@ -129,17 +129,15 @@ PyObject *PyGCH_gc_enable(void) {
  * Sets a Python exception and returns `NULL` if `gc` or `gc.disable` cannot be
  * imported.
  * 
- * @returns Borrowed reference to `Py_None` on success, `NULL` on failure.
+ * @returns New reference to `Py_None` on success, `NULL` on failure.
  */
 PyObject *PyGCH_gc_disable(void) {
   // get gc.disable if PyGCH_disable_o is NULL. exception set on error
   if (!PyGCH_gc_member_unique_import("disable", &PyGCH_disable_o)) {
     return;
   }
-  // call gc.disable and Py_XDECREF its return value
-  PyObject *py_return = PyObject_CallObject(PyGCH_disable_o, NULL);
-  Py_XDECREF(py_return);
-  return py_return;
+  // call gc.disable and return its return value
+  return PyObject_CallObject(PyGCH_disable_o, NULL);
 }
 
 /**
@@ -148,19 +146,16 @@ PyObject *PyGCH_gc_disable(void) {
  * Sets a Python exception and returns `NULL` if `gc` or `gc.isenabled` cannot
  * be imported.
  * 
- * @returns Borrowed reference to `Py_True` if garbage collection is enabled,
- *     borrowed reference to `Py_False` if garbage collection is disabled,
- *     `NULL` on error.
+ * @returns New reference to `Py_True` if garbage collection is enabled, new
+ *     reference to `Py_False` if collection is disabled, `NULL` on error.
  */
 PyObject *PyGCH_gc_isenabled(void) {
   // get gc.isenabled if PyGCH_isenabled_o is NULL. exception set on error
   if (!PyGCH_gc_member_unique_import("disable", &PyGCH_isenabled_o)) {
     return NULL;
   }
-  // call gc.isenabled and Py_XDECREF its return value
-  PyObject *py_return = PyObject_CallObject(PyGCH_disable_o, NULL);
-  Py_XDECREF(py_return);
-  return py_return;
+  // call gc.isenabled and return its return value
+  return PyObject_CallObject(PyGCH_disable_o, NULL);
 }
 #endif /* PYGCH_NO_DEFINE */
 
