@@ -119,8 +119,14 @@ PyObject *PyGCH_gc_enable(void) {
   if (!PyGCH_gc_member_unique_import("enable", &PyGCH_enable_o)) {
     return;
   }
-  // call gc.enable and return its return value
-  return PyObject_CallObject(PyGCH_enable_o, NULL);
+  /**
+   * call gc.enable and Py_XDECREF its return value before returning.
+   * ordinarily this would be a horrible error, but since Py_None starts with a
+   * reference count of 1, this is not a horrible thing to do.
+   */
+  PyObject *py_return = PyObject_CallObject(PyGCH_enable_o, NULL);
+  Py_XDECREF(py_return);
+  return py_return;
 }
 
 /**
@@ -129,15 +135,17 @@ PyObject *PyGCH_gc_enable(void) {
  * Sets a Python exception and returns `NULL` if `gc` or `gc.disable` cannot be
  * imported.
  * 
- * @returns New reference to `Py_None` on success, `NULL` on failure.
+ * @returns Borrowed reference to `Py_None` on success, `NULL` on failure.
  */
 PyObject *PyGCH_gc_disable(void) {
   // get gc.disable if PyGCH_disable_o is NULL. exception set on error
   if (!PyGCH_gc_member_unique_import("disable", &PyGCH_disable_o)) {
     return;
   }
-  // call gc.disable and return its return value
-  return PyObject_CallObject(PyGCH_disable_o, NULL);
+  // call gc.disable and Py_XDECREF its return value before returning
+  PyObject *py_return = PyObject_CallObject(PyGCH_disable_o, NULL);
+  Py_XDECREF(py_return);
+  return py_return;
 }
 
 /**
@@ -146,16 +154,22 @@ PyObject *PyGCH_gc_disable(void) {
  * Sets a Python exception and returns `NULL` if `gc` or `gc.isenabled` cannot
  * be imported.
  * 
- * @returns New reference to `Py_True` if garbage collection is enabled, new
- *     reference to `Py_False` if collection is disabled, `NULL` on error.
+ * @returns Borrowed reference to `Py_True` if garbage collection is enabled,
+ *     borrowed reference to `Py_False` if garbage collection is disabled,
+ *     otherwise `NULL` on error.
  */
 PyObject *PyGCH_gc_isenabled(void) {
   // get gc.isenabled if PyGCH_isenabled_o is NULL. exception set on error
   if (!PyGCH_gc_member_unique_import("disable", &PyGCH_isenabled_o)) {
     return NULL;
   }
-  // call gc.isenabled and return its return value
-  return PyObject_CallObject(PyGCH_disable_o, NULL);
+  /**
+   * call gc.isenabled and Py_XDECREF its return value for borrowed ref. like
+   * Py_None, Py_True and Py_False start out with reference counts of 1.
+   */
+  PyObject *py_return = PyObject_CallObject(PyGCH_disable_o, NULL);
+  Py_XDECREF(py_return);
+  return py_return;
 }
 #endif /* PYGCH_NO_DEFINE */
 
