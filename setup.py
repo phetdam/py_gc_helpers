@@ -12,14 +12,14 @@ _PROJECT_URL = "https://github.com/phetdam/py_gch"
 
 def _setup():
     # get version
-    with open("examples/ext_version", "r") as vf:
+    with open("examples/pkg_version", "r") as vf:
         version = vf.read().rstrip()
     # short and long descriptions
     short_desc = (
         "An example Python C extension module that uses the C API to gc "
         "provided by the py_gch.h header file."
     )
-    with open("examples/ext_longdesc.rst", "r") as rf:
+    with open("examples/pkg_longdesc.rst", "r") as rf:
         long_desc = rf.read()
     # perform setup
     setup(
