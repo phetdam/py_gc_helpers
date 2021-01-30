@@ -119,3 +119,33 @@ def test_obj_grad(linsvm, svm_data):
     grad_ex = np.append(grad_w, grad_b)
     # check that they are pretty close
     np.testing.assert_allclose(grad_act, grad_ex)
+
+
+def test_fit_sanity(linsvm):
+    """Test the sanity of the :class:`PrimalLinearSVC` fit method.
+
+    :param linsvm: ``pytest`` fixture. See package ``conftest.py``.
+    :type linsvm: :class:`~py_gch_example.models.PrimalLinearSVC`
+    """
+    # input and output shapes must match
+    with pytest.raises(
+        ValueError, match = "X, y must have the same number of samples"
+    ):
+        linsvm.fit(np.array([[1, 2], [2, 1]]), np.array([1, 3, 4]))
+    # X must have shape (n_samples, n_features)
+    with pytest.raises(
+        ValueError, match = r"X must have shape \(n_samples, n_features\)"
+    ):
+        linsvm.fit(np.array([1, 3, 4]), np.array([1, 3, 4]))
+    # batch size cannot exceed the number of elements
+    with pytest.raises(
+        ValueError, match = "batch_size cannot exceed size of data"
+    ):
+        svc = PrimalLinearSVC(batch_size = 100, seed = 9)
+        svc.fit(np.array([[1, 3], [4, 1]]), np.array([4, 5]))
+    # output array can only have two different label types
+    with pytest.raises(
+        RuntimeError,
+        match = "Model can only fit on binary classification tasks"
+    ):
+        linsvm.fit(np.array([[1, 3], [1, 3], [5, 2]]), np.array([1, 2, 3]))

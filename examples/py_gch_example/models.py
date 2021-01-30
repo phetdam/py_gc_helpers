@@ -153,9 +153,9 @@ class PrimalLinearSVC:
         """
         # check input and output shapes
         if X.shape[0] != y.shape[0]:
-            raise ValueError("X, y must have same number of samples")
+            raise ValueError("X, y must have the same number of samples")
         if len(X.shape) != 2:
-            raise ValueError("X must have shape (n_features, n_samples)")
+            raise ValueError("X must have shape (n_samples, n_features)")
         if len(y.shape) != 1:
             raise ValueError("y must have shape (n_features,)")
         # check that self.batch_size doesn't exceed len(y)
@@ -168,8 +168,8 @@ class PrimalLinearSVC:
         labels = np.unique(y)
         if len(labels) != 2:
             raise RuntimeError(
-                "Model only fit on binary classification task. Expected two "
-                f"unique labels, got {len(labels)}"
+                "Model can only fit on binary classification tasks. Expected "
+                f"two unique labels, got {len(labels)}"
             )
         # sort labels and set as attribute
         labels.sort()
