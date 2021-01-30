@@ -1,1 +1,1 @@
-__doc__ = "Top-level ``__init__.py`` for ``py_gch_example``."
+__doc__ = "Top-level ``__init__.py`` for ``py_gch_demo``."

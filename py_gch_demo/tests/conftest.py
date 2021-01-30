@@ -1,4 +1,4 @@
-__doc__ = "Fixtures for :mod:`py_gch_example.tests`."
+__doc__ = "Fixtures for :mod:`py_gch_demo.tests`."
 
 import pytest
 
@@ -32,6 +32,6 @@ def linsvm():
     the scope of the instance is ``"function"`` by default, the state of the
     RNG is always fresh whenever it is first used in a test function.
 
-    :rtype: :class:`py_gch_example.models.PrimalLinearSVC`
+    :rtype: :class:`py_gch_demo.models.PrimalLinearSVC`
     """
     return PrimalLinearSVC(seed = 7)

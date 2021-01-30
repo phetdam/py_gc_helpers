@@ -1,1 +1,1 @@
-__doc__ = "``py_gch_example`` subpackage for Python unit tests."
+__doc__ = "``py_gch_demo`` subpackage for Python unit tests."

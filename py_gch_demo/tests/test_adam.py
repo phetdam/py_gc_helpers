@@ -1,4 +1,4 @@
-__doc__ = "Unit tests for the Adam implementation in ``py_gch_example``."
+__doc__ = "Unit tests for the Adam implementation in ``py_gch_demo``."
 
 import numpy as np
 import pytest

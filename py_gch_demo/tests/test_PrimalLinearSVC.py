@@ -1,4 +1,4 @@
-__doc__ = "Unit tests for :class:`py_gch_example.models.PrimalLinearSVC`."
+__doc__ = "Unit tests for :class:`py_gch_demo.models.PrimalLinearSVC`."
 
 import numpy as np
 import pytest
@@ -51,7 +51,7 @@ def test_obj_func(linsvm, svm_data):
     """Test that the :class:`PrimalLinearSVC` objective works as intended.
 
     :param linsvm: ``pytest`` fixture. See package ``conftest.py``.
-    :type linsvm: :class:`~py_gch_example.models.PrimalLinearSVC`
+    :type linsvm: :class:`~py_gch_demo.models.PrimalLinearSVC`
     :param svm_data: ``pytest`` fixture. See package ``conftest.py``.
     :type svm_data: tuple
     """
@@ -83,7 +83,7 @@ def test_obj_grad(linsvm, svm_data):
     """Test that the :class:`PrimalLinearSVC` gradient works as intended.
 
     :param linsvm: ``pytest`` fixture. See package ``conftest.py``.
-    :type linsvm: :class:`~py_gch_example.models.PrimalLinearSVC`
+    :type linsvm: :class:`~py_gch_demo.models.PrimalLinearSVC`
     :param svm_data: ``pytest`` fixture. See package ``conftest.py``.
     :type svm_data: tuple
     """
@@ -125,7 +125,7 @@ def test_fit_sanity(linsvm):
     """Test the sanity of the :class:`PrimalLinearSVC` fit method.
 
     :param linsvm: ``pytest`` fixture. See package ``conftest.py``.
-    :type linsvm: :class:`~py_gch_example.models.PrimalLinearSVC`
+    :type linsvm: :class:`~py_gch_demo.models.PrimalLinearSVC`
     """
     # input and output shapes must match
     with pytest.raises(
