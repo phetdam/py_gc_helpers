@@ -30,7 +30,7 @@ PyDoc_STRVAR(
 
 PyDoc_STRVAR(
   adam_optimizer_doc,
-  "adam_optimizer(obj, grad, x0, args=(), kwargs=None, max_iter=200, "
+  "adam_optimizer(obj, grad, x0, args=(), kwargs=None, *, max_iter=200, "
   "n_iter_no_change=10, tol=1e-4, alpha=0.001, beta_1=0.9, beta_2=0.999, "
   "eps=1e-8, disable_gc=True)\n--\n\n"
   "A bare-bones implementation of Kingma and Ba's Adam optimizer [#]_."
@@ -94,8 +94,9 @@ static char *adam_optimizer_argnames[] = {
  * 
  * Python signature:
  * 
- * `adam(obj, grad, x0, args=(), kwargs=None, max_iter=100, alpha=0.001,
- * beta_1=0.9, beta_2=0.999, eps=1e-8, disable_gc=True)`
+ * `adam_optimizer(obj, grad, x0, args=(), kwargs=None, *, max_iter=200,
+ * n_iter_no_change=10, tol=1e-4, alpha=0.001, beta_1=0.9, beta_2=0.999,
+ * eps=1e-8, disable_gc=True)`
  * 
  * @param self `PyObject *` self (ignored)
  * @param args `PyObject *` tuple of positional args
@@ -123,9 +124,9 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
   // parse parameters. exception set on error
   if (
     !PyArg_ParseTupleAndKeywords(
-      args, kwargs, "OOO!|O!O!nndddddp", adam_optimizer_argnames, &obj,
-      &grad, (PyObject **) &x0, &PyArray_Type, &f_args, &PyTuple_Type,
-      &f_kwargs, &PyDict_Type, &max_iter, &n_iter_no_change, &tol, &alpha,
+      args, kwargs, "OOO!|O!O!$nndddddp", adam_optimizer_argnames, &obj,
+      &grad, &PyArray_Type, (PyObject **) &x0, &PyTuple_Type, &f_args,
+      &PyDict_Type, &f_kwargs, &max_iter, &n_iter_no_change, &tol, &alpha,
       &beta_1, &beta_2, &eps, &disable_gc
     )
   ) { return NULL; }
