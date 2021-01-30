@@ -13,8 +13,8 @@ _EXT_NAME = "solvers"
 
 
 def _setup():
-    # get package version
-    with open("pkg_version", "r") as vf:
+    # get version
+    with open("VERSION", "r") as vf:
         version = vf.read().rstrip()
     # short and long descriptions
     short_desc = (
