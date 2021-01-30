@@ -3,6 +3,11 @@
 py_gch
 ======
 
+   Note:
+
+   This repository is currently under development and thus its contents will
+   undergo frequent change.
+
 A lightweight API for enabling/disabling Python garbage collection implemented
 in the `gc`__ module from Python C extension code or C/C++ code embedding the
 CPython interpreter.
