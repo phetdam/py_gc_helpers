@@ -117,7 +117,7 @@ int PyGCH_gc_member_unique_import(char const *member_name, PyObject **dest) {
 PyObject *PyGCH_gc_enable(void) {
   // get gc.enable if PyGCH_enable_o is NULL. exception set on error
   if (!PyGCH_gc_member_unique_import("enable", &PyGCH_enable_o)) {
-    return;
+    return NULL;
   }
   /**
    * call gc.enable and Py_XDECREF its return value before returning.
@@ -140,7 +140,7 @@ PyObject *PyGCH_gc_enable(void) {
 PyObject *PyGCH_gc_disable(void) {
   // get gc.disable if PyGCH_disable_o is NULL. exception set on error
   if (!PyGCH_gc_member_unique_import("disable", &PyGCH_disable_o)) {
-    return;
+    return NULL;
   }
   // call gc.disable and Py_XDECREF its return value before returning
   PyObject *py_return = PyObject_CallObject(PyGCH_disable_o, NULL);

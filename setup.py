@@ -43,14 +43,16 @@ def _setup():
         python_requires = ">=3.6",
         packages = [_PACKAGE_NAME, _PACKAGE_NAME + ".tests"],
         install_requires = ["numpy>=1.19"],
+        # re-map package directory to be prepended with examples/
+        package_dir = {_PACKAGE_NAME: "examples/" + _PACKAGE_NAME},
         # no extra package name for the extension module
         ext_package = _PACKAGE_NAME,
         ext_modules = [
             Extension(
                 name = "ext_example",
                 # allows numpy and py_gch.h to be included
-                include_dirs = get_include() + {"include"},
-                sources = ["examples/ext_example.c"],
+                include_dirs = [get_include(), "include"],
+                sources = ["examples/" + _PACKAGE_NAME + "/ext_example.c"],
             ),
         ]
     )

@@ -202,12 +202,12 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
   }
   // fill f_args with params and elements of xf_args (Py_INCREF all of them)
   Py_INCREF(params);
-  PyTuple_SET_ITEM(f_args, 0, params);
+  PyTuple_SET_ITEM(f_args, 0, (PyObject *) params);
   if (xf_args != NULL) {
     for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(xf_args); i++) {
       // all items in xf_args need to get Py_INCREF'd
       PyObject *xf_args_i = PyTuple_GET_ITEM(xf_args, i);
-      PyINCREF(xf_args_i);
+      Py_INCREF(xf_args_i);
       PyTuple_SET_ITEM(f_args, i + 1, xf_args_i);
     }
   }
