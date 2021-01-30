@@ -3,12 +3,16 @@
 py_gch
 ======
 
-Macros for enabling/disabling Python garbage collection from C extension code.
+A lightweight API for enabling/disabling Python garbage collection implemented
+in the `gc`__ module from Python C extension code or C/C++ code embedding the
+CPython interpreter.
 
-I wrote these macros since the garbage collection implemented in `gcmodule.c`__
-for CPython doesn't expose the same API in C as it does in Python. That is,
-there are no C analogues to calling ``gc.disable``, ``gc.enable`` and so on
-[#]_.
+Work on this API was inspired by the observation that garbage collection
+implemented in `gcmodule.c`__ for CPython doesn't expose the same API in C as
+it does in Python. That is, there are no C analogues to calling ``gc.disable``,
+``gc.enable`` and so on [#]_.
+
+.. __: https://docs.python.org/3/library/gc.html
 
 .. __: https://github.com/python/cpython/blob/master/Modules/gcmodule.c
 
