@@ -95,7 +95,10 @@ class PrimalLinearSVC:
         :rtype: float
         """
         w, b = wb[:-1], wb[-1]
-        return np.maximum(0, 1 - y * (X @ w + b)).sum() + np.power(w, 2).sum()
+        return (
+            np.maximum(0, 1 - y * (X @ w + b)).sum() +
+            self.reg_lambda * np.power(w, 2).sum()
+        )
 
     def _obj_grad(self, wb, X, y):
         """Gradient of :meth:`_obj_func` for the :class:`PrimalLinearSVC`.
@@ -130,7 +133,10 @@ class PrimalLinearSVC:
         # array indicating which examples contribute to the gradient
         update_ind = np.where(y_batch * (X_batch @ w + b) < 1, 1, 0)
         # compute w gradient and b derivative
-        grad_w = -(update_ind * y_batch * X_batch.T).sum(axis = 1)
+        grad_w = (
+            -(update_ind * y_batch * X_batch.T).sum(axis = 1) +
+            2 * self.reg_lambda * w
+        )
         grad_b = -(update_ind * y_batch).sum()
         # return w, b gradient
         return np.append(grad_w, grad_b)
@@ -172,8 +178,12 @@ class PrimalLinearSVC:
         y = np.where(y == labels[0], -1, 1)
         # set n_features as attribute
         self.n_features_ = X.shape[1]
-        # batch size to be passed to the gradient functions
-        self.minibatch_size_ = int(self.batch_size * y.size)
+        # batch size to be passed to the gradient function. need to handle the
+        # the case where batch_size is a float and when it is an int
+        if self.batch_size > 0 and self.batch_size < 1:
+            self.minibatch_size_ = int(self.batch_size * y.size)
+        else:
+            self.minibatch_size_ = self.batch_size
         # initial random parameter guess
         x0 = self._rng.multivariate_normal(
             np.zeros(self.n_features_), np.eye(self.n_features_)

@@ -4,19 +4,7 @@ import numpy as np
 import pytest
 
 # pylint: disable=no-name-in-module
-from ..models import PrimalLinearSVC
 from ..solvers import adam_optimizer
-
-
-@pytest.fixture
-def linsvm():
-    """Returns an instance of ``PrimalLinearSVC`` for testing Adam.
-
-    All parameters used are defaults except for ``seed = 7``.
-
-    :rtype: :class:`py_gch_example.models.PrimalLinearSVC`
-    """
-    return PrimalLinearSVC(seed = 7)
 
 
 @pytest.mark.skip(reason = "not implemented")

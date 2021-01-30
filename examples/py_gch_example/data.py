@@ -57,7 +57,7 @@ def make_linear_regression(
     )
     # callable to generate additive noise for outputs
     output_noise = partial(rng.normal, scale = output_std)
-    # make training and test data + return
+    # make train and test data + return
     X_train, X_test = make_inputs(size = n_train), make_inputs(size = n_test)
     y_train = X_train @ weights + output_mean + output_noise(size = n_train)
     y_test = X_test @ weights + output_mean + output_noise(size = n_test)
