@@ -8,6 +8,8 @@ from setuptools import Extension, setup
 _PACKAGE_NAME = "py_gch_example"
 # project URL
 _PROJECT_URL = "https://github.com/phetdam/py_gch"
+# name of the C extension module (also name of its source .c file)
+_EXT_NAME = "solvers"
 
 
 def _setup():
@@ -16,8 +18,8 @@ def _setup():
         version = vf.read().rstrip()
     # short and long descriptions
     short_desc = (
-        "An example Python C extension module that uses the C API to gc "
-        "provided by the py_gch.h header file."
+        "An example Python package containing a C extension module that uses "
+        "the C API to gc provided by the py_gch.h header file."
     )
     with open("examples/pkg_longdesc.rst", "r") as rf:
         long_desc = rf.read()
@@ -49,10 +51,12 @@ def _setup():
         ext_package = _PACKAGE_NAME,
         ext_modules = [
             Extension(
-                name = "ext_example",
+                name = _EXT_NAME,
                 # allows numpy and py_gch.h to be included
                 include_dirs = [get_include(), "include"],
-                sources = ["examples/" + _PACKAGE_NAME + "/ext_example.c"],
+                sources = [
+                    "examples/" + _PACKAGE_NAME + "/" + _EXT_NAME + ".c"
+                ],
             ),
         ]
     )

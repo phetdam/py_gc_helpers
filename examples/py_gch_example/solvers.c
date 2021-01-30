@@ -1,6 +1,7 @@
 /**
- * @file ext_example.c
- * @brief An example C extension module using the API provided by `py_gch.h`.
+ * @file solvers.c
+ * @brief A C extension module with an implementation for the Adam optimizer
+ *     using the API provided by `py_gch.h`.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -10,7 +11,7 @@
 #include <stdlib.h>
 
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#define PY_ARRAY_UNIQUE_SYMBOL EXT_EXAMPLE_ARRAY_API
+#define PY_ARRAY_UNIQUE_SYMBOL SOLVERS_ARRAY_API
 // arrayobject.h gives access to the array API, npymath.h the core math library
 #include "numpy/arrayobject.h"
 #include "numpy/npy_math.h"
@@ -280,13 +281,13 @@ static PyMethodDef mod_methods[] = {
 // static module definition
 static PyModuleDef mod_struct = {
   PyModuleDef_HEAD_INIT,
-  "ext_example",
+  "solvers",
   module_doc,
   -1,
   mod_methods
 };
 
-PyMODINIT_FUNC PyInit_ext_example(void) {
+PyMODINIT_FUNC PyInit_solvers(void) {
   // sets error indicator and returns NULL on error automatically
   import_array();
   // create module; if NULL, error
