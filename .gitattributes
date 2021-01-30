@@ -1,1 +1,2 @@
-examples/py_gch_example/* linguist-detectable
+examples/py_gch_example/*.c linguist-detectable
+examples/py_gch_example/*.py linguist-detectable
