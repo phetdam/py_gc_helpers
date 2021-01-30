@@ -6,6 +6,7 @@
 #define PY_SSIZE_T_CLEAN
 #include "Python.h"
 
+#include <float.h>
 #include <stdlib.h>
 
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
@@ -28,8 +29,9 @@ PyDoc_STRVAR(
 
 PyDoc_STRVAR(
   adam_optimizer_doc,
-  "adam_optimizer(obj, grad, x0, args=(), kwargs=None, max_iter=100, "
-  "alpha=0.001, beta_1=0.9, beta_2=0.999, eps=1e-8, disable_gc=True)\n--\n\n"
+  "adam_optimizer(obj, grad, x0, args=(), kwargs=None, max_iter=200, "
+  "n_iter_no_change=10, tol=1e-4, alpha=0.001, beta_1=0.9, beta_2=0.999, "
+  "eps=1e-8, disable_gc=True)\n--\n\n"
   "A bare-bones implementation of Kingma and Ba's Adam optimizer [#]_."
   "\n\n"
   "Optimizer parameter defaults are the same as specified in the paper."
@@ -54,6 +56,12 @@ PyDoc_STRVAR(
   ":type kwargs: dict, optional\n"
   ":param max_iter: Maximum number of iterations to run before termination\n"
   ":type max_iter: int, optional\n"
+  ":param n_iter_no_change: Number of iterations that objective function\n"
+  "    value doesn't decrease by at least ``tol`` to trigger early stopping\n"
+  ":type n_iter_no_change: int, optional\n"
+  ":param tol: Minimum amount of objective value decrease between\n"
+  "    iterations required to prevent triggering early stopping\n"
+  ":type tol: float, optional\n"
   ":param alpha: The :math:`\\alpha` parameter for the Adam algorithm that\n"
   "    gives the stepsize. Must be positive."
   ":param alpha: float, optional\n"
@@ -77,8 +85,8 @@ PyDoc_STRVAR(
 );
 // Python argument names for adam_optimizer
 static char *adam_optimizer_argnames[] = {
-  "obj", "grad", "x0", "args", "kwargs", "max_iter", "alpha", "beta_1",
-  "beta_2", "eps", "disable_gc", NULL
+  "obj", "grad", "x0", "args", "kwargs", "max_iter", "n_iter_no_change",
+  "tol", "alpha", "beta_1", "beta_2", "eps", "disable_gc", NULL
 };
 /**
  * A simple implementation of Kingma and Ba's Adam optimization algorithm.
@@ -104,18 +112,20 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
    * arguments to PyObject_Call.
    */
   PyObject *f_args = NULL, *f_kwargs = NULL;
-  // max iterations
-  Py_ssize_t max_iter = 100;
-  // Adam optimzer hyperparameters
-  double alpha = 0.001, beta_1 = 0.9, beta_2 = 0.999, eps = 1e-8;
+  // max iterations, number of iterations objective improvement is less than
+  // tol before early stopping is triggered
+  Py_ssize_t max_iter = 200, n_iter_no_change = 10;
+  // min iter improvement, Adam optimizer hyperparameters
+  double tol = 1e-4, alpha = 0.001, beta_1 = 0.9, beta_2 = 0.999, eps = 1e-8;
   // whether or not to disable garbage collection
   int disable_gc = 1;
   // parse parameters. exception set on error
   if (
     !PyArg_ParseTupleAndKeywords(
-      args, kwargs, "OOO!|O!O!nddddp", adam_optimizer_argnames, &obj, &grad,
-      (PyObject **) &x0, &PyArray_Type, &f_args, &PyTuple_Type, &f_kwargs,
-      &PyDict_Type, &max_iter, &alpha, &beta_1, &beta_2, &eps, &disable_gc
+      args, kwargs, "OOO!|O!O!nndddddp", adam_optimizer_argnames, &obj,
+      &grad, (PyObject **) &x0, &PyArray_Type, &f_args, &PyTuple_Type,
+      &f_kwargs, &PyDict_Type, &max_iter, &n_iter_no_change, &tol, &alpha,
+      &beta_1, &beta_2, &eps, &disable_gc
     )
   ) { return NULL; }
   // check if obj and grad are callable
@@ -138,6 +148,17 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
   }
   if (eps <= 0) {
     PyErr_SetString(PyExc_ValueError, "eps must be positive");
+    return NULL;
+  }
+  // check that n_iter_no_change, tol is valid (must be nonnegative)
+  if (n_iter_no_change < 0) {
+    PyErr_SetString(
+      PyExc_ValueError, "n_iter_no_change must be nonnegative\n"
+    );
+    return NULL;
+  }
+  if (tol < 0) {
+    PyErr_SetString(PyExc_ValueError, "tol must be nonnegative");
     return NULL;
   }
   // warn if eps is too big
@@ -211,6 +232,34 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
       PyTuple_SET_ITEM(f_args, i + 1, xf_args_i);
     }
   }
+  /*
+  // evaluate objective function at current guess
+  PyObject *obj_val_ = PyObject_Call(obj, f_args, f_kwargs);
+  // on error, need to Py_DECREF params, f_args (new references)
+  if (obj_val_ == NULL) {
+    Py_DECREF(params);
+    Py_DECREF(f_args);
+    return NULL;
+  }
+  // objective function value
+  double obj_val = PyFloat_AsDouble(obj_val_);
+  // Py_DECFEF params, f_args (new refs on error)
+  if (PyErr_Occurred()) {
+    Py_DECREF(params);
+    Py_DECREF(f_args);
+    return NULL;
+  }
+  // improvement from last iteration
+  double obj_imp = DBL_MAX;
+  // consecutive iterations where obj value has not improved by at least tol
+  Py_ssize_t n_no_change = 0;
+  // number of iterations run - 1
+  Py_ssize_t iter_i = 0;
+  // while not converged
+  while ((iter_i < max_iter) && (n_no_change < n_iter_no_change)) {
+    iter_i++;
+  }
+  */
   // Py_DECREF f_args
   Py_DECREF(f_args);
   // return final parameters
