@@ -242,8 +242,9 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
     Py_DECREF(f_args);
     return NULL;
   }
-  // objective function value
+  // objective function value + Py_DECREF unneeded obj_val_
   double obj_val = PyFloat_AsDouble(obj_val_);
+  Py_DECREF(obj_val_);
   // Py_DECFEF params, f_args (new refs on error)
   if (PyErr_Occurred()) {
     Py_DECREF(params);
