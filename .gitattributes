@@ -1,5 +1,5 @@
 **/*.c linguist-language=C
 **/*.h linguist-language=C++
-examples/py_gch_example -linguist-vendored
-examples/py_gch_example/*.c linguist-language=C
-examples/py_gch_example/*.py linguist-language=Python
+examples -linguist-vendored
+examples/*.c linguist-language=C
+examples/*.py linguist-language=Python
