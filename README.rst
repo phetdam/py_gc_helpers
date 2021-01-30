@@ -7,10 +7,9 @@ A lightweight API for enabling/disabling Python garbage collection implemented
 in the `gc`__ module from Python C extension code or C/C++ code embedding the
 CPython interpreter.
 
-Work on this API was inspired by the observation that garbage collection
-implemented in `gcmodule.c`__ for CPython doesn't expose the same API in C as
-it does in Python. That is, there are no C analogues to calling ``gc.disable``,
-``gc.enable`` and so on [#]_.
+Inspired by the fact that garbage collection implemented in `gcmodule.c`__ for
+CPython doesn't expose the same API in C as it does in Python. That is, there
+are no C analogues to calling ``gc.disable``, ``gc.enable`` and so on [#]_.
 
 .. __: https://docs.python.org/3/library/gc.html
 
