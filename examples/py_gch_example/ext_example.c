@@ -17,14 +17,25 @@
 #include "py_gch.h"
 
 PyDoc_STRVAR(
-  ADAM_DOC,
-  "adam(obj, grad, x0, args=(), kwargs=None, max_iter=100, alpha=0.001, "
-  "beta_1=0.9, beta_2=0.999, eps=1e-8, disable_gc=True)\n--\n\n"
+  module_doc,
+  "An example C extension module using the API provided by ``py_gch.h``."
+  "\n\n"
+  "Contains a C implementation of `Kingma and Ba's [#]_ Adam optimizer."
+  "\n\n"
+  ".. [#] Kingma, D.P. & Ba, J. (2017). Adam: A method for stochastic\n"
+  "   *arXiv*. https://arxiv.org/pdf/1412.6980.pdf"
+);
+
+PyDoc_STRVAR(
+  adam_optimizer_doc,
+  "adam_optimizer(obj, grad, x0, args=(), kwargs=None, max_iter=100, "
+  "alpha=0.001, beta_1=0.9, beta_2=0.999, eps=1e-8, disable_gc=True)\n--\n\n"
   "A bare-bones implementation of Kingma and Ba's Adam optimizer [#]_."
   "\n\n"
   "Optimizer parameter defaults are the same as specified in the paper."
   "\n\n"
-  ".. [#] https://arxiv.org/pdf/1412.6980.pdf"
+  ".. [#] Kingma, D.P. & Ba, J. (2017). Adam: A method for stochastic\n"
+  "   *arXiv*. https://arxiv.org/pdf/1412.6980.pdf"
   "\n\n"
   ":param obj: Objective function to minimize. Must have signature\n"
   "    ``obj(x, *args, **kwargs)``. ``x`` must be a :class:`numpy.ndarray`\n"
@@ -64,8 +75,8 @@ PyDoc_STRVAR(
   "    parameter ``x`` in the objective function.\n"
   ":rtype: :class:`numpy.ndarray`"
 );
-// Python argument names for adam
-static char *adam_argnames[] = {
+// Python argument names for adam_optimizer
+static char *adam_optimizer_argnames[] = {
   "obj", "grad", "x0", "args", "kwargs", "max_iter", "alpha", "beta_1",
   "beta_2", "eps", "disable_gc", NULL
 };
@@ -83,7 +94,7 @@ static char *adam_argnames[] = {
  * @returns `PyArrayObject *` cast to `PyObject *` of parameters, the same
  *     shape as the original guess.
  */
-static PyObject *adam(PyObject *self, PyObject *args, PyObject *kwargs) {
+static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
   // objective function, gradient function, initial parameter guess (required)
   PyObject *obj, *grad;
   PyArrayObject *x0;
@@ -102,7 +113,7 @@ static PyObject *adam(PyObject *self, PyObject *args, PyObject *kwargs) {
   // parse parameters. exception set on error
   if (
     !PyArg_ParseTupleAndKeywords(
-      args, kwargs, "OOO!|O!O!nddddp", adam_argnames, &obj, &grad,
+      args, kwargs, "OOO!|O!O!nddddp", adam_optimizer_argnames, &obj, &grad,
       (PyObject **) &x0, &PyArray_Type, &f_args, &PyTuple_Type, &f_kwargs,
       &PyDict_Type, &max_iter, &alpha, &beta_1, &beta_2, &eps, &disable_gc
     )
@@ -206,6 +217,29 @@ static PyObject *adam(PyObject *self, PyObject *args, PyObject *kwargs) {
   return (PyObject *) params;
 }
 
-PyMODINIT_FUNC PyInit_ext_example(void) {
+// method table
+static PyMethodDef mod_methods[] = {
+  {
+    "adam_optimizer",
+    (PyCFunction) adam_impl,
+    METH_VARARGS | METH_KEYWORDS,
+    adam_optimizer_doc  
+  },
+  {NULL, NULL, 0, NULL}
+};
 
+// static module definition
+static PyModuleDef mod_struct = {
+  PyModuleDef_HEAD_INIT,
+  "ext_example",
+  module_doc,
+  -1,
+  mod_methods
+};
+
+PyMODINIT_FUNC PyInit_ext_example(void) {
+  // sets error indicator and returns NULL on error automatically
+  import_array();
+  // create module; if NULL, error
+  return PyModule_Create(&mod_struct);
 }
