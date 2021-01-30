@@ -1,0 +1,8 @@
+# ignore setup.py build/dist output
+build/*
+dist/*
+*.egg-info/*
+# ignore .vscode settings, __pycache__, shared object files
+.vscode
+**/__pycache__
+**/*.so
