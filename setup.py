@@ -5,7 +5,7 @@ from numpy import get_include
 from setuptools import Extension, setup
 
 # package name (also the name of the extension module)
-_PACKAGE_NAME = "py_gch_example"
+_PACKAGE_NAME = "py_gch_demo"
 # project URL
 _PROJECT_URL = "https://github.com/phetdam/py_gch"
 # name of the C extension module (also name of its source .c file)
@@ -13,15 +13,15 @@ _EXT_NAME = "solvers"
 
 
 def _setup():
-    # get version
-    with open("examples/pkg_version", "r") as vf:
+    # get package version
+    with open("pkg_version", "r") as vf:
         version = vf.read().rstrip()
     # short and long descriptions
     short_desc = (
         "An example Python package containing a C extension module that uses "
         "the C API to gc provided by the py_gch.h header file."
     )
-    with open("examples/pkg_longdesc.rst", "r") as rf:
+    with open("pkg_longdesc.rst", "r") as rf:
         long_desc = rf.read()
     # perform setup
     setup(
@@ -45,8 +45,6 @@ def _setup():
         python_requires = ">=3.6",
         packages = [_PACKAGE_NAME, _PACKAGE_NAME + ".tests"],
         install_requires = ["numpy>=1.19"],
-        # re-map package directory to be prepended with examples/
-        package_dir = {_PACKAGE_NAME: "examples/" + _PACKAGE_NAME},
         # no extra package name for the extension module
         ext_package = _PACKAGE_NAME,
         ext_modules = [
@@ -55,7 +53,7 @@ def _setup():
                 # allows numpy and py_gch.h to be included
                 include_dirs = [get_include(), "include"],
                 sources = [
-                    "examples/" + _PACKAGE_NAME + "/" + _EXT_NAME + ".c"
+                    _PACKAGE_NAME + "/" + _EXT_NAME + ".c"
                 ],
             ),
         ]
