@@ -1,6 +1,7 @@
 # setup.py for building py_gch_examples package. extension modules can't be
 # built without setup.py so we can't use the new PEP 517 format.
 
+from numpy import get_include
 from setuptools import Extension, setup
 
 # package name (also the name of the extension module)
@@ -41,14 +42,15 @@ def _setup():
         project_urls = {"Source": _PROJECT_URL},
         python_requires = ">=3.6",
         packages = [_PACKAGE_NAME, _PACKAGE_NAME + ".tests"],
+        install_requires = ["numpy>=1.19"],
         # no extra package name for the extension module
         ext_package = _PACKAGE_NAME,
         ext_modules = [
             Extension(
                 name = "ext_example",
-                # allows py_gch.h to be included
-                include_dirs = ["include"],
-                sources = ["examples/" + _PACKAGE_NAME + ".c"],
+                # allows numpy and py_gch.h to be included
+                include_dirs = get_include() + {"include"},
+                sources = ["examples/ext_example.c"],
             ),
         ]
     )
