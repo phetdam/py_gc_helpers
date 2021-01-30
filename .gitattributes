@@ -1,5 +1,5 @@
 **/*.c linguist-language=C
 **/*.h linguist-language=C++
-examples -linguist-vendored
-examples/*.c linguist-language=C
-examples/*.py linguist-language=Python
+examples -linguist-vendored linguist-detectable
+examples/*.c linguist-detectable linguist-language=C
+examples/*.py linguist-detectable linguist-language=Python
