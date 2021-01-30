@@ -1,3 +1,2 @@
-**/*.h linguist-language=C++
-**/*.c linguist-language=C
-examples/py_gch_example/ext_example.c linguist-language=C
+*.h linguist-language=Java
+*.c linguist-language=C
