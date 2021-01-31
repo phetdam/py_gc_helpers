@@ -23,13 +23,13 @@ Quickstart
 All you need is the ``.h`` file in the ``include`` directory and you're ready
 to go.
 
-Python C extensions
-~~~~~~~~~~~~~~~~~~~
+Python C extension modules
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 TBA.
 
-C/C++ embedding the Python interpreter
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C/C++ code embedding the Python interpreter
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 TBA.
 
