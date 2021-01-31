@@ -16,6 +16,28 @@ Inspired by the fact that garbage collection implemented in `gcmodule.c`__ for
 CPython doesn't expose the same API in C as it does in Python. That is, there
 are no C analogues to calling ``gc.disable``, ``gc.enable`` and so on [#]_.
 
+
+Quickstart
+----------
+
+All you need is the ``.h`` file in the ``include`` directory and you're ready
+to go.
+
+Python C extensions
+~~~~~~~~~~~~~~~~~~~
+
+TBA.
+
+C/C++ embedding the Python interpreter
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+TBA.
+
+Contents
+--------
+
+TBA.
+
 .. __: https://docs.python.org/3/library/gc.html
 
 .. __: https://github.com/python/cpython/blob/master/Modules/gcmodule.c
