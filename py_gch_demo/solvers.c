@@ -167,7 +167,7 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
   if (eps >= 1e-1) { 
     if (
       PyErr_WarnEx(
-        PyExc_UserWarning, "eps excees 1e-1; step sizes may be overly "
+        PyExc_UserWarning, "eps exceeds 1e-1; step sizes may be overly "
         "deflated. Consider passing a smaller value.", 1
       ) < 0
     ) { return NULL; }
@@ -177,7 +177,7 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
     PyErr_SetString(PyExc_ValueError, "beta_1 must be inside [0, 1)");
     return NULL;
   }
-  if ((beta_2 < 0) || (beta_2 >= 2)) {
+  if ((beta_2 < 0) || (beta_2 >= 1)) {
     PyErr_SetString(PyExc_ValueError, "beta_2 must be inside [0, 1)");
     return NULL;
   }
@@ -186,15 +186,8 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
     PyErr_SetString(PyExc_TypeError, "x0 must contain either ints or floats");
     return NULL;
   }
-  // check if array can be cast to NPY_DOUBLE safely
-  if (!PyArray_CanCastSafely(PyArray_TYPE(x0), NPY_DOUBLE)) {
-    if (
-      PyErr_WarnEx(
-        PyExc_UserWarning, "x0 cannot be safely cast to NPY_DOUBLE. precision "
-        "may be lost during computation", 1
-      ) < 0
-    ) { return NULL; }
-  }
+  // no need to check if array cannot be correctly cast as PyArray_FromArray
+  // will raise an exception if safe casting fails
   /**
    * create new output array containing NPY_DOUBLE values of x0. a reference
    * to the PyArrayDescr * is stolen by this function. NPY_ARRAY_CARRAY flags
