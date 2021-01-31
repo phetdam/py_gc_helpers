@@ -6,6 +6,7 @@
 
 #define PY_SSIZE_T_CLEAN
 #include "Python.h"
+#include "structmember.h"
 
 #include <float.h>
 #include <stdlib.h>
@@ -27,6 +28,243 @@ PyDoc_STRVAR(
   ".. [#] Kingma, D.P. & Ba, J. (2017). Adam: A method for stochastic\n"
   "   *arXiv*. https://arxiv.org/pdf/1412.6980.pdf"
 );
+
+// new immutable type for the optimization result returned by adam_optimizer
+typedef struct {
+  PyObject_HEAD;
+  // final parameter guess (PyArrayObject * cast to PyObject *)
+  PyObject *x;
+  // final objective value
+  double obj;
+  // final gradient value (PyArrayObject * cast to PyObject *)
+  PyObject *grad;
+  // numbers of times objective and gradient were evaluated
+  Py_ssize_t n_obj_eval;
+  Py_ssize_t n_grad_eval;
+  // iterations elapsed during runtime
+  Py_ssize_t n_iter;
+} GradSolverResult;
+
+/**
+ * Deallocation function for the `GradSolverResult` type.
+ * 
+ * @param self `GradSolverResult *` reference to `GradSolverResult` instance
+ */
+static void GradSolverResult_dealloc(GradSolverResult *self) {
+  // pointers might be NULL if called during __new__
+  Py_XDECREF(self->x);
+  Py_XDECREF(self->grad);
+}
+
+/**
+ * `__new__` implementation for the `GradSolverResult`.
+ * 
+ * All initialization done here since the type is immutable. Python signature:
+ * 
+ * `GradSolverResult.__new__(x, obj, grad, n_obj_eval, n_grad_eval, n_iter)`
+ * 
+ * @param type `PyTypeObject *` reference to `GradSolverResult` type object
+ * @param args `PyObject *` tuple of positional args
+ * @param kwargs `PyObject *` dict of named args, could be `NULL`
+ */
+static PyObject *GradSolverResult_new(
+  PyTypeObject *type, PyObject *args, PyObject *kwargs
+) {
+  // simple sanity checks if called within module
+  if (type == NULL) {
+    PyErr_SetString(PyExc_RuntimeError, "PyTypeObject *type is NULL");
+    return NULL;
+  }
+  if (args == NULL) {
+    PyErr_SetString(PyExc_RuntimeError, "PyObject *args is NULL");
+    return NULL;
+  }
+  // try to allocate new instance of the GradSolverResult
+  GradSolverResult *self = (GradSolverResult *) type->tp_alloc(type, 0);
+  // exception set on error so we can just return
+  if (self == NULL) {
+    return NULL;
+  }
+  // set self->x, self->grad to NULL so that dealloc works correctly on error
+  self->x = self->grad = NULL;
+  // parse arguments; all positional. Py_DECREF on error (indicator set)
+  if (
+    !PyArg_ParseTuple(
+      args, "O!dO!nnn", &PyArray_Type, &(self->x), &(self->obj),
+      &PyArray_Type, &(self->grad), &(self->n_obj_eval),
+      &(self->n_grad_eval), &(self->n_iter)
+    )
+  ) {
+    Py_DECREF(self);
+    return NULL;
+  }
+  // Py_INCREF x, grad since those references were borrowed
+  Py_INCREF(self->x);
+  Py_INCREF(self->grad);
+  // temporary PyArrayObject * variables for self->x, self->grad
+  PyArrayObject *self_x = (PyArrayObject *) self->x;
+  PyArrayObject *self_grad = (PyArrayObject *) self->grad;
+  // check that x, grad aren't zero-dimensional. on error, set exception
+  // and Py_DECREF self as usual (since it's new)
+  if (PyArray_SHAPE(self_x) == NULL) {
+    PyErr_SetString(PyExc_ValueError, "x must have at least 1 dimension");
+    Py_DECREF(self);
+    return NULL;
+  }
+  if (PyArray_SHAPE(self_grad) == NULL) {
+    PyErr_SetString(PyExc_ValueError, "grad must have at least 1 dimension");
+    Py_DECREF(self);
+    return NULL;
+  }
+  // number of dimensions for x, grad
+  int x_ndim = PyArray_NDIM(self_x), grad_ndim = PyArray_NDIM(self_grad);
+  // check that x, grad have same number of dimensions
+  if (x_ndim != grad_ndim) {
+    PyErr_SetString(
+      PyExc_ValueError, "x, grad must have the same number of dimensions"
+    );
+    Py_DECREF(self);
+    return NULL;
+  }
+  // check that x and grad have the same shape (doesn't make sense otherwise)
+  npy_intp *x_shape = PyArray_SHAPE(self_x);
+  npy_intp *grad_shape = PyArray_SHAPE(self_grad);
+  for (npy_intp i = 0; i < x_ndim; i++) {
+    // if shape doesn't match in a dimension, raise exception + Py_DECREF
+    if (x_shape[i] != grad_shape[i]) {
+      // use ld format since npy_intp -> long int on x86-64
+      PyErr_Format(PyExc_ValueError, "x, grad shapes differ on axis %ld", i);
+      Py_DECREF(self);
+      return NULL;
+    }
+  }
+  // n_obj_eval, n_grad_eval, n_iter all need to be positive. Py_DECREF self
+  // on error and set ValueError otherwise
+  if (self->n_obj_eval < 1) {
+    PyErr_SetString(PyExc_ValueError, "n_obj_eval must be positive");
+    Py_DECREF(self);
+    return NULL;
+  }
+  if (self->n_grad_eval < 1) {
+    PyErr_SetString(PyExc_ValueError, "n_grad_eval must be positive");
+    Py_DECREF(self);
+    return NULL;
+  }
+  if (self->n_iter) {
+    PyErr_SetString(PyExc_ValueError, "n_iter must be positive");
+    Py_DECREF(self);
+    return NULL;
+  }
+  // return fully initialized instance (cast to suppress warning)
+  return (PyObject *) self;
+}
+
+// docstrings for the members of the GradSolverResult
+PyDoc_STRVAR(
+  GradSolverResult_x_doc, "Final parameter guess after optimization"
+);
+PyDoc_STRVAR(
+  GradSolverResult_obj_doc, "Final value of the objective function"
+);
+PyDoc_STRVAR(
+  GradSolverResult_grad_doc, "Final value of the objective gradient"
+);
+PyDoc_STRVAR(
+  GradSolverResult_n_obj_eval_doc,
+  "Total number of objective function evaluations"
+);
+PyDoc_STRVAR(
+  GradSolverResult_n_grad_eval_doc,
+  "Total number of gradient function evaluations"
+);
+PyDoc_STRVAR(
+  GradSolverResult_n_iter_doc, "Total number of optimizer iterations performed"
+);
+// members for the GradSolverResult (all read-only)
+static PyMemberDef GradSolverResult_members[] = {
+  {
+    "x",
+    T_OBJECT_EX,
+    offsetof(GradSolverResult, x),
+    READONLY,
+    GradSolverResult_x_doc
+  },
+  {
+    "obj",
+    T_DOUBLE,
+    offsetof(GradSolverResult, obj),
+    READONLY,
+    GradSolverResult_obj_doc
+  },
+  {
+    "grad",
+    T_OBJECT_EX,
+    offsetof(GradSolverResult, grad),
+    READONLY,
+    GradSolverResult_grad_doc
+  },
+  {
+    "n_obj_eval",
+    T_PYSSIZET,
+    offsetof(GradSolverResult, n_obj_eval),
+    READONLY,
+    GradSolverResult_n_obj_eval_doc
+  },
+  {
+    "n_grad_eval",
+    T_PYSSIZET,
+    offsetof(GradSolverResult, n_grad_eval),
+    READONLY,
+    GradSolverResult_n_grad_eval_doc
+  },
+  {
+    "n_iter",
+    T_PYSSIZET,
+    offsetof(GradSolverResult, n_iter),
+    READONLY,
+    GradSolverResult_n_iter_doc
+  },
+  {NULL, 0, 0, 0, NULL}
+};
+
+// docstring for the GradSolverResult
+PyDoc_STRVAR(
+  GradSolverResult_doc,
+  "Simple class to hold results returned by first-order optimizers."
+  "\n\n"
+  "All members are read-only and ``__new__`` parameters are positional-only.\n"
+  "Class is final and cannot be subtyped."
+  "\n\n"
+  ":param x: Final parameter guess returned by the optimizer. Cannot be\n"
+  "    zero-dimensional and must match the shape of ``grad``.\n"
+  ":type x: :class:`numpy.ndarray`\n"
+  ":param obj: Final value of the objective function\n"
+  ":type obj: float\n"
+  ":param grad: Final value of the objective gradient. Cannot be\n"
+  "    zero-dimensional and must match the shape of ``x``.\n"
+  ":type grad: :class:`numpy.ndarray`\n"
+  ":param n_obj_eval: Total number of objective function evaluations\n"
+  ":type n_obj_eval: int\n"
+  ":param n_grad_eval: Total number of gradient function evaluations\n"
+  ":type n_grad_eval: int\n"
+  ":param n_iter: Total number of iterations performed by optimizer\n"
+  ":type n_iter: int\n"
+);
+// static PyTypeObject for the GradSolverResult type
+static PyTypeObject GradSolverResult_type = {
+  PyVarObject_HEAD_INIT(NULL, 0)
+  // class name, class docstring, size of GradSolverResult struct
+  .tp_name = "solvers.GradSolverResult",
+  .tp_doc = GradSolverResult_doc,
+  .tp_basicsize = sizeof(GradSolverResult),
+  // doesn't contain any items, no Py_TPFLAGS_BASETYPE flag (final)
+  .tp_itemsize = 0,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  // custom new, dealloc, members
+  .tp_new = GradSolverResult_new,
+  .tp_dealloc = (destructor) GradSolverResult_dealloc,
+  .tp_members = GradSolverResult_members
+};
 
 PyDoc_STRVAR(
   adam_optimizer_doc,
@@ -203,7 +441,7 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
   // pack all positional args for obj, grad (params, f_args) into a new tuple.
   // if f_args is NULL, then there aren't any other positional args to add.
   Py_ssize_t n_pos_f_args = 1;
-  // we know f_args points to a tuple, so no need to check
+  // we know f_args either points to a tuple or is NULL so no need to check
   if (f_args != NULL) {
     n_pos_f_args = n_pos_f_args + PyTuple_GET_SIZE(f_args);
   }
@@ -221,14 +459,13 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
   PyTuple_SET_ITEM(f_args, 0, (PyObject *) params);
   if (xf_args != NULL) {
     for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(xf_args); i++) {
-      // all items in xf_args need to get Py_INCREF'd
+      // all items (borrowed refs) in xf_args need to get Py_INCREF'd
       PyObject *xf_args_i = PyTuple_GET_ITEM(xf_args, i);
       Py_INCREF(xf_args_i);
       PyTuple_SET_ITEM(f_args, i + 1, xf_args_i);
     }
   }
-  /*
-  // evaluate objective function at current guess
+  // evaluate objective function at current guess so we can track improvements
   PyObject *obj_val_ = PyObject_Call(obj, f_args, f_kwargs);
   // on error, need to Py_DECREF params, f_args (new references)
   if (obj_val_ == NULL) {
@@ -251,12 +488,40 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
   Py_ssize_t n_no_change = 0;
   // number of iterations run - 1
   Py_ssize_t iter_i = 0;
-  // while not converged
-  while ((iter_i < max_iter) && (n_no_change < n_iter_no_change)) {
-    iter_i++;
-  }
-  */
-  // Py_DECREF f_args
+  // while not converged (max_iter iterations not reached and number of
+  // consecutive iterations with improvement < tol less than n_iter_no_change)
+  do {
+
+
+    // compute new objective value, get as PyObject *
+    obj_val_ = PyObject_Call(obj, f_args, f_kwargs);
+    // on error, need to Py_DECREF params, f_args (+ any other new refs)
+    if (obj_val_ == NULL) {
+      Py_DECREF(params);
+      Py_DECREF(f_args);
+    }
+    // use obj_imp to hold old value of objective value
+    obj_imp = obj_val;
+    // get new objective value as double + Py_DECREF unneeded obj_val_
+    obj_val = PyFloat_AsDouble(obj_val_);
+    Py_DECREF(obj_val_);
+    // on error, Py_DECREF params, f_args (+ any other new refs)
+    if (PyErr_Occurred()) {
+      Py_DECREF(params);
+      Py_DECREF(f_args);
+    }
+    // compute improvement from last iteration (obj_imp has old obj_val)
+    obj_imp = obj_imp - obj_val;
+    // if obj_imp (improvement of objective) < tol, increment n_no_change
+    if (obj_imp < tol) {
+      n_no_change++;
+    }
+    // else if n_no_change not zero, set to 0
+    else if (n_no_change > 0) {
+      n_no_change = 0;
+    }
+  } while ((iter_i < max_iter) && (n_no_change < n_iter_no_change));
+  // Py_DECREF f_args (no longer needed)
   Py_DECREF(f_args);
   // return final parameters
   return (PyObject *) params;
@@ -282,9 +547,30 @@ static PyModuleDef mod_struct = {
   mod_methods
 };
 
+// module initialization function (external linkage)
 PyMODINIT_FUNC PyInit_solvers(void) {
+  // if type isn't ready, error indicator set
+  if (PyType_Ready(&GradSolverResult_type) < 0) {
+    return NULL;
+  }
   // sets error indicator and returns NULL on error automatically
   import_array();
   // create module; if NULL, error
-  return PyModule_Create(&mod_struct);
+  PyObject *module = PyModule_Create(&mod_struct);
+  if (module == NULL) {
+    return NULL;
+  }
+  // PyModule_AddObject only steals a reference on success, so on failure, we
+  // need to Py_DECREF &GradSolverResult_type (and module)
+  Py_INCREF(&GradSolverResult_type);
+  if (
+    PyModule_AddObject(
+      module, "GradSolverResult", (PyObject *) &GradSolverResult_type
+    ) < 0
+  ) {
+    Py_DECREF(&GradSolverResult_type);
+    Py_DECREF(module);
+    return NULL;
+  }
+  return module;
 }
