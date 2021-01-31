@@ -9,6 +9,7 @@
 #include "structmember.h"
 
 #include <float.h>
+#include <math.h>
 #include <stdlib.h>
 
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
@@ -65,7 +66,7 @@ static void GradSolverResult_dealloc(GradSolverResult *self) {
  * 
  * @param type `PyTypeObject *` reference to `GradSolverResult` type object
  * @param args `PyObject *` tuple of positional args
- * @param kwargs `PyObject *` dict of named args, could be `NULL`
+ * @param kwargs `PyObject *` dict of named args (ignored)
  */
 static PyObject *GradSolverResult_new(
   PyTypeObject *type, PyObject *args, PyObject *kwargs
@@ -98,7 +99,8 @@ static PyObject *GradSolverResult_new(
     Py_DECREF(self);
     return NULL;
   }
-  // Py_INCREF x, grad since those references were borrowed
+  // Py_INCREF x, grad since those references were borrowed. these will be
+  // Py_DECREF'd when Py_DECREF is called on self.
   Py_INCREF(self->x);
   Py_INCREF(self->grad);
   // temporary PyArrayObject * variables for self->x, self->grad
@@ -150,7 +152,7 @@ static PyObject *GradSolverResult_new(
     Py_DECREF(self);
     return NULL;
   }
-  if (self->n_iter) {
+  if (self->n_iter < 1) {
     PyErr_SetString(PyExc_ValueError, "n_iter must be positive");
     Py_DECREF(self);
     return NULL;
@@ -488,27 +490,188 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
   Py_ssize_t n_no_change = 0;
   // number of iterations run - 1
   Py_ssize_t iter_i = 0;
+  // number of times objective has been evaluated
+  Py_ssize_t n_obj_eval = 1;
+  // number of times gradient has been evaluated
+  Py_ssize_t n_grad_eval = 0;
+  /**
+   * value of the gradient, first moment vector, second raw moment vector.
+   * init grad_val to NULL since we want to save grad_val after we finish the
+   * optimization loop. therefore, grad_val doesn't get Py_DECREF'd near the
+   * end of the loop but rather at the beginning with a Py_XDECREF.
+   */
+  PyObject *grad_val, *grad_mean, *grad_var;
+  grad_val = NULL;
+  // initialize first and second moment vectors to all 0 (both C-order)
+  grad_mean = PyArray_ZEROS(
+    PyArray_NDIM(params), PyArray_DIMS(params), NPY_DOUBLE, 0
+  );
+  // on error, Py_DECREF params, f_args
+  if (grad_mean == NULL) {
+    Py_DECREF(params);
+    Py_DECREF(f_args);
+    return NULL;
+  }
+  grad_var = PyArray_ZEROS(
+    PyArray_NDIM(params), PyArray_DIMS(params), NPY_DOUBLE, 0
+  );
+  // on error, Py_DECREF params, f_args, grad_mean (new reference)
+  if (grad_var == NULL) {
+    Py_DECREF(params);
+    Py_DECREF(f_args);
+    Py_DECREF(grad_mean);
+    return NULL;
+  }
   // while not converged (max_iter iterations not reached and number of
   // consecutive iterations with improvement < tol less than n_iter_no_change)
   do {
-
-
-    // compute new objective value, get as PyObject *
+    // Py_XDECREF old gradient vector (NULL on first iteration)
+    Py_XDECREF(grad_val);
+    // get gradient value from grad + increment n_grad_eval
+    grad_val = PyObject_Call(grad, f_args, f_kwargs);
+    n_grad_eval++;
+    // on error, need to Py_DECREF params, f_args, grad_mean, grad_var
+    if (grad_val == NULL) {
+      Py_DECREF(params);
+      Py_DECREF(f_args);
+      Py_DECREF(grad_mean);
+      Py_DECREF(grad_var);
+      return NULL;
+    }
+    // number of operands going into the multi-iterator
+    int n_iter_ops = 4;
+    // array of PyArrayObject * for params, grad_val, grad_mean, grad_var so
+    // that we can use them together in the multi-iterator
+    PyArrayObject *iter_ops[] = {
+      params, (PyArrayObject *) grad_val, (PyArrayObject *) grad_mean,
+      (PyArrayObject *) grad_var
+    };
+    /**
+     * flags for each of the operands. grad_val is read-only but the other
+     * operands are all read + write (updated). we also specify the data to
+     * be in native byte order and to be aligned for each operand using the
+     * NPY_ITER_NBO | NPY_ITER_ALIGNED flag combination.
+     */
+    npy_uint32 iter_op_flags[n_iter_ops];
+    // flags for params
+    iter_op_flags[0] = NPY_ITER_READWRITE | NPY_ITER_NBO | NPY_ITER_ALIGNED;
+    // flags for grad_val
+    iter_op_flags[1] = NPY_ITER_READONLY | NPY_ITER_NBO | NPY_ITER_ALIGNED;
+    // flags for grad_mean
+    iter_op_flags[2] = NPY_ITER_READWRITE | NPY_ITER_NBO | NPY_ITER_ALIGNED;
+    // flags for grad_var
+    iter_op_flags[3] = NPY_ITER_READWRITE | NPY_ITER_NBO | NPY_ITER_ALIGNED;
+    /**
+     * array of PyArray_Descr * to specify types to the multi-iterator. we
+     * only need one because we can just borrow references. after initializing
+     * the iterator we can Py_DECREF iter_op_types[0] since the iterator
+     * internally Py_INCREF's each PyArray_Descr * provided.
+     */
+    PyArray_Descr *iter_op_dtypes[n_iter_ops];
+    iter_op_dtypes[0] = PyArray_DescrFromType(NPY_DOUBLE);
+    // on error, Py_DECREF params, f_args, grad_val grad_mean, grad_var
+    if (iter_op_dtypes[0] == NULL) {
+      Py_DECREF(params);
+      Py_DECREF(f_args);
+      Py_DECREF(grad_val);
+      Py_DECREF(grad_mean);
+      Py_DECREF(grad_var);
+      return NULL;
+    }
+    // borrow references from iter_op_dtypes[0]
+    for (int i = 1; i < n_iter_ops; i++) {
+      iter_op_dtypes[i] = iter_op_dtypes[0];
+    }
+    /**
+     * use multi-iterator to update grad_mean, grad_var, params using grad_val
+     * values. since all numpy.ndarray types are NPY_DOUBLE, NPY_NO_CASTING
+     * is passed as the casting flag. multi-iterator tracks C index and goes
+     * through elements in original (C) order.
+     */
+    NpyIter *iter = NpyIter_MultiNew(
+      n_iter_ops, iter_ops, NPY_ITER_C_INDEX, NPY_KEEPORDER,
+      NPY_NO_CASTING, iter_op_flags, iter_op_dtypes
+    );
+    // don't need the PyArray_Descr * anymore
+    Py_DECREF(iter_op_dtypes[0]);
+    // on error, Py_DECREF params, f_args, grad_val, grad_mean, grad_var
+    if (iter == NULL) {
+      Py_DECREF(params);
+      Py_DECREF(f_args);
+      Py_DECREF(grad_val);
+      Py_DECREF(grad_mean);
+      Py_DECREF(grad_var);
+      return NULL;
+    }
+    // get NpyIter_IterNextFunc that handles iteration
+    NpyIter_IterNextFunc *iternext = NpyIter_GetIterNext(iter, NULL);
+    // on error, Py_DECREF params, f_args, grad_val, grad_mean, grad_var and
+    // deallocate iter using NpyIter_Deallocate
+    if (iter == NULL) {
+      Py_DECREF(params);
+      Py_DECREF(f_args);
+      Py_DECREF(grad_val);
+      Py_DECREF(grad_mean);
+      Py_DECREF(grad_var);
+      // if there is an error we are returning NULL anyways
+      NpyIter_Deallocate(iter);
+      return NULL;
+    }
+    // pointer to array of pointers to next iteration elements
+    char **iter_op_data = NpyIter_GetDataPtrArray(iter);
+    // we update each element of params, grad_mean, grad_var
+    do {
+      // pointers to next element of params, grad_val, grad_mean, grad_var
+      double *param_ep = (double *) iter_op_data[0];
+      double *grad_val_ep = (double *) iter_op_data[1];
+      double *grad_mean_ep = (double *) iter_op_data[2];
+      double *grad_var_ep = (double *) iter_op_data[3];
+      // update element of biased first moment estimate
+      *grad_mean_ep = beta_1 * (*grad_mean_ep) + (1 - beta_1) * (*grad_val_ep);
+      // update element of biased second raw moment estimate
+      *grad_var_ep = beta_2 * (*grad_var_ep) + (1 - beta_2) * (*grad_var_ep);
+      // update element of parameter using bias-corrected first and second
+      // moment element estimates (no temp variable)
+      *param_ep = (
+        *param_ep - alpha * (*grad_mean_ep) / (1 - pow(beta_1, iter_i + 1)) /
+        (sqrt((*grad_var_ep) / (1 - pow(beta_2, iter_i + 1))) + eps)
+      );
+    } while (iternext(iter));
+    // deallocate multi-iterator now that we are done updating. on error we
+    // Py_DECREF params, f_args, grad_val, grad_mean, grad_var
+    if (NpyIter_Deallocate(iter) != NPY_SUCCEED) {
+      Py_DECREF(params);
+      Py_DECREF(f_args);
+      Py_DECREF(grad_val);
+      Py_DECREF(grad_mean);
+      Py_DECREF(grad_var);
+      return NULL;
+    }
+    // compute new objective value, get as PyObject * + increment n_obj_eval
     obj_val_ = PyObject_Call(obj, f_args, f_kwargs);
-    // on error, need to Py_DECREF params, f_args (+ any other new refs)
+    n_obj_eval++;
+    // on error, must Py_DECREF params, f_args, grad_val, grad_mean, grad_var
     if (obj_val_ == NULL) {
       Py_DECREF(params);
       Py_DECREF(f_args);
+      Py_DECREF(grad_val);
+      Py_DECREF(grad_mean);
+      Py_DECREF(grad_var);
+      return NULL;
     }
     // use obj_imp to hold old value of objective value
     obj_imp = obj_val;
     // get new objective value as double + Py_DECREF unneeded obj_val_
     obj_val = PyFloat_AsDouble(obj_val_);
     Py_DECREF(obj_val_);
-    // on error, Py_DECREF params, f_args (+ any other new refs)
+    // on error, Py_DECREF params, f_args, grad_val, grad_mean, grad_var
     if (PyErr_Occurred()) {
       Py_DECREF(params);
       Py_DECREF(f_args);
+      Py_DECREF(grad_val);
+      Py_DECREF(grad_mean);
+      Py_DECREF(grad_var);
+      return NULL;
     }
     // compute improvement from last iteration (obj_imp has old obj_val)
     obj_imp = obj_imp - obj_val;
@@ -520,11 +683,73 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
     else if (n_no_change > 0) {
       n_no_change = 0;
     }
+    // increment iter_i
+    iter_i++;
   } while ((iter_i < max_iter) && (n_no_change < n_iter_no_change));
-  // Py_DECREF f_args (no longer needed)
+  // Py_DECREF f_args, grad_mean, grad_var (no longer needed)
   Py_DECREF(f_args);
-  // return final parameters
-  return (PyObject *) params;
+  Py_DECREF(grad_mean);
+  Py_DECREF(grad_var);
+  /**
+   * we now build new argument tuple from params, obj_val (convert), grad_val,
+   * n_obj_eval (convert), n_grad_eval (convert), iter_i + 1 (convert). first,
+   * we need to convert obj_val to Python float and n_* to Python int.
+   */
+  obj_val_ = PyFloat_FromDouble(obj_val);
+  // on error, Py_DECREF params and grad_val
+  if (obj_val_ == NULL) {
+    Py_DECREF(params);
+    Py_DECREF(grad_val);
+    return NULL;
+  }
+  PyObject *n_obj_eval_ = PyLong_FromSsize_t(n_obj_eval);
+  // on error, Py_DECREF params, grad_val, obj_val_ (new ref)
+  if (n_obj_eval_ == NULL) {
+    Py_DECREF(params);
+    Py_DECREF(grad_val);
+    Py_DECREF(obj_val_);
+    return NULL;
+  }
+  PyObject *n_grad_eval_ = PyLong_FromSsize_t(n_grad_eval);
+  // on error, Py_DECREF params, grad_val, obj_val_, n_obj_eval_
+  if (n_obj_eval_ == NULL) {
+    Py_DECREF(params);
+    Py_DECREF(grad_val);
+    Py_DECREF(obj_val_);
+    Py_DECREF(n_obj_eval_);
+    return NULL;
+  }
+  PyObject *n_iter_ = PyLong_FromSsize_t(iter_i + 1);
+  // on error, Py_DECREF params, grad_val, obj_val_, n_obj_eval_, n_grad_eval_
+  if (n_obj_eval_ == NULL) {
+    Py_DECREF(params);
+    Py_DECREF(grad_val);
+    Py_DECREF(obj_val_);
+    Py_DECREF(n_obj_eval_);
+    Py_DECREF(n_grad_eval_);
+    return NULL;
+  }
+  /**
+   * create tuple from params, obj_val_, grad_val, n_obj_eval_, n_grad_eval_,
+   * n_iter_ to pass to GradSolverResult_new. since the references are borrowed
+   * (no reference is stolen) by PyTuple_Pack, we don't Py_DECREF on success.
+   */
+  PyObject *gsr_args = PyTuple_Pack(
+    6, params, obj_val_, grad_val, n_obj_eval_, n_grad_eval_, n_iter_
+  );
+  // Py_DECREF params, obj_val_, grad_val, n_obj_eval_, n_grad_eval_, n_iter_
+  // on failure (on success we leave the refs be)
+  if (gsr_args == NULL) {
+    Py_DECREF(params);
+    Py_DECREF(grad_val);
+    Py_DECREF(obj_val_);
+    Py_DECREF(n_obj_eval_);
+    Py_DECREF(n_grad_eval_);
+    Py_DECREF(n_iter_);
+    return NULL;
+  }
+  // return result from GradSolverResult_new (NULL if err with exception set)
+  return GradSolverResult_new(&GradSolverResult_type, gsr_args, NULL);
 }
 
 // method table

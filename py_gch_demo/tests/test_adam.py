@@ -7,7 +7,7 @@ import pytest
 from ..solvers import adam_optimizer
 
 
-def test_adam_optimizer_sanity(linsvm, linsvm_x0, svm_data):
+def test_adam_optimizer_sanity(linsvm, linsvm_x0, svm_data, adam_dummy_args):
     """Sanity check for ``adam_optimizer`` inputs.
 
     :param linsvm: ``pytest`` fixture. See package ``conftest.py``.
@@ -16,6 +16,8 @@ def test_adam_optimizer_sanity(linsvm, linsvm_x0, svm_data):
     :type linsvm_x0: :class:`numpy.ndarray`
     :param svm_data: ``pytest`` fixture. See package ``conftest.py``.
     :type svm_data: tuple
+    :param adam_dummy_args: ``pytest`` fixture. See package ``conftest.py``.
+    :type adam_dummy_args: tuple
     """
     # unpack data and make reference to objective and gradient functions
     X, _, y, _ = svm_data
@@ -57,9 +59,11 @@ def test_adam_optimizer_sanity(linsvm, linsvm_x0, svm_data):
         ValueError, match = "n_iter_no_change must be nonnegative"
     ):
         adam_optimizer(*req_args, n_iter_no_change = -1)
-    # warning should be raised if eps is too large
+    # warning should be raised if eps is too large. use dummy args since the
+    # PrimalLinearSVC hasn't been fitted yet. todo: set obj, grad for a
+    # linear regression problem (simple objective)
     with pytest.warns(UserWarning, match = "eps exceeds 1e-1"):
-        adam_optimizer(*req_args, eps = 1)
+        adam_optimizer(*adam_dummy_args, eps = 1)
     # beta_1 must be float and within [0, 1)
     with pytest.raises(TypeError):
         adam_optimizer(*req_args, beta_1 = ())

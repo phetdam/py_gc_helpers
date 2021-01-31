@@ -53,3 +53,17 @@ def linsvm_x0():
     """
     rng = np.random.default_rng(999)
     return rng.multivariate_normal(np.zeros(11), np.eye(11))
+
+
+@pytest.fixture(scope = "session")
+def adam_dummy_args():
+    """Dummy arguments for the Adam optimizer.
+
+    Objective always returns 0 and gradient always returns 0. The initial guess
+    is also (surprise) zero. If ``n_iter_no_change`` > 0, then the optimizer
+    will terminate in ``n_iter_no_change`` iterations.
+
+    :returns 3-tuple of dummy objective, dummy gradient, and dummy guess
+    :rtype: tuple
+    """
+    return lambda x: 0, lambda x: np.zeros(3), np.zeros(3)
