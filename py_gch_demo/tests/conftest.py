@@ -163,3 +163,26 @@ def adam_ridge_args(lr_data, data_x0):
         ridge_obj, ridge_grad, data_x0, (X, y),
         dict(reg_lambda = 0.2, batch_frac = 0.25)
     )
+
+
+@pytest.fixture(scope = "module")
+def tuple_replace():
+    """Returns a new tuple with elements replaced at various indices.
+
+    A utility fixture which could be helpful for creating new input cases on
+    the fly from existing tuples without needing to unpack the individual
+    elements of the original tuple. New elements and their indices are
+    specified in ``(idx, val)``pairs pass as positional arguments.
+
+    :rtype: function
+    """
+    def _tuple_replacer(op, *args):
+        # op (tuple) as a new list that can be mutated
+        op_ = list(op)
+        # for each idx, val pair, update
+        for idx, val in args:
+            op_[idx] = val
+        # return new tuple from op_
+        return tuple(op_)
+    
+    return _tuple_replacer
