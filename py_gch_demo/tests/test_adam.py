@@ -54,7 +54,7 @@ def test_adam_optimizer_sanity(adam_ridge_args, adam_dummy_args):
         adam_optimizer(*adam_ridge_args, n_iter_no_change = -1)
     # warning should be raised if eps is too large
     with pytest.warns(UserWarning, match = "eps exceeds 1e-1"):
-        print(adam_optimizer(*adam_ridge_args, eps = 1))
+        print(adam_optimizer(*adam_dummy_args, eps = 1))
     # beta_1 must be float and within [0, 1)
     with pytest.raises(TypeError):
         adam_optimizer(*adam_ridge_args, beta_1 = ())

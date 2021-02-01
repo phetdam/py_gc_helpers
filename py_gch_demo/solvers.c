@@ -46,6 +46,9 @@ typedef struct {
   Py_ssize_t n_iter;
 } GradSolverResult;
 
+// string name for the GradSolverResult (just class name)
+#define GradSolverResult_name "GradSolverResult"
+
 /**
  * Deallocation function for the `GradSolverResult` type.
  * 
@@ -55,6 +58,8 @@ static void GradSolverResult_dealloc(GradSolverResult *self) {
   // pointers might be NULL if called during __new__
   Py_XDECREF(self->x);
   Py_XDECREF(self->grad);
+  // free the struct using the default function set to tp_free
+  Py_TYPE(self)->tp_free((void *) self);
 }
 
 /**
@@ -86,9 +91,13 @@ static PyObject *GradSolverResult_new(
   if (self == NULL) {
     return NULL;
   }
-  // set self->x, self->grad to NULL so that dealloc works correctly on error
-  self->x = self->grad = NULL;
-  // parse arguments; all positional. Py_DECREF on error (indicator set)
+  /**
+   * parse arguments; all positional. Py_DECREF on error (indicator set). note
+   * that if there is a parsing error we set self->x and self->grad to NULL.
+   * this way dealloc works correctly in the case that x and/or grad are
+   * correctly parsed but a different argument causes an exception raise as in
+   * this case a borrowed reference will get Py_XDECREF'd.
+   */
   if (
     !PyArg_ParseTuple(
       args, "O!dO!nnn", &PyArray_Type, &(self->x), &(self->obj),
@@ -96,6 +105,7 @@ static PyObject *GradSolverResult_new(
       &(self->n_grad_eval), &(self->n_iter)
     )
   ) {
+    self->x = self->grad = NULL;
     Py_DECREF(self);
     return NULL;
   }
@@ -106,20 +116,20 @@ static PyObject *GradSolverResult_new(
   // temporary PyArrayObject * variables for self->x, self->grad
   PyArrayObject *self_x = (PyArrayObject *) self->x;
   PyArrayObject *self_grad = (PyArrayObject *) self->grad;
+  // number of dimensions for x, grad
+  int x_ndim = PyArray_NDIM(self_x), grad_ndim = PyArray_NDIM(self_grad);
   // check that x, grad aren't zero-dimensional. on error, set exception
   // and Py_DECREF self as usual (since it's new)
-  if (PyArray_SHAPE(self_x) == NULL) {
+  if (x_ndim == 0) {
     PyErr_SetString(PyExc_ValueError, "x must have at least 1 dimension");
     Py_DECREF(self);
     return NULL;
   }
-  if (PyArray_SHAPE(self_grad) == NULL) {
+  if (grad_ndim == 0) {
     PyErr_SetString(PyExc_ValueError, "grad must have at least 1 dimension");
     Py_DECREF(self);
     return NULL;
   }
-  // number of dimensions for x, grad
-  int x_ndim = PyArray_NDIM(self_x), grad_ndim = PyArray_NDIM(self_grad);
   // check that x, grad have same number of dimensions
   if (x_ndim != grad_ndim) {
     PyErr_SetString(
@@ -129,9 +139,9 @@ static PyObject *GradSolverResult_new(
     return NULL;
   }
   // check that x and grad have the same shape (doesn't make sense otherwise)
-  npy_intp *x_shape = PyArray_SHAPE(self_x);
-  npy_intp *grad_shape = PyArray_SHAPE(self_grad);
-  for (npy_intp i = 0; i < x_ndim; i++) {
+  npy_intp *x_shape = PyArray_DIMS(self_x);
+  npy_intp *grad_shape = PyArray_DIMS(self_grad);
+  for (int i = 0; i < x_ndim; i++) {
     // if shape doesn't match in a dimension, raise exception + Py_DECREF
     if (x_shape[i] != grad_shape[i]) {
       // use ld format since npy_intp -> long int on x86-64
@@ -159,6 +169,34 @@ static PyObject *GradSolverResult_new(
   }
   // return fully initialized instance (cast to suppress warning)
   return (PyObject *) self;
+}
+
+/**
+ * Custom `__repr__` implementation for the `GradSolverResult.
+ * 
+ * @param self `GradSolverResult *` self
+ * @returns `PyObject *` Python Unicode object
+ */
+PyObject *GradSolverResult_repr(GradSolverResult *self) {
+  // PyUnicode_FromFormat doesn't accept double formatting, so create new
+  // Python object holding the objective function value
+  PyObject *py_obj = PyFloat_FromDouble(self->obj);
+  if (py_obj == NULL) {
+    return NULL;
+  }
+  // create Python string representation. Py_DECREF py_obj on error
+  PyObject *repr_str = PyUnicode_FromFormat(
+    GradSolverResult_name "(x=%R, obj=%R, grad=%R, n_obj_eval=%zd, "
+    "n_grad_eval=%zd, n_iter=%zd)", self->x, py_obj, self->grad,
+    self->n_obj_eval, self->n_grad_eval, self->n_iter
+  );
+  if (repr_str == NULL) {
+    Py_DECREF(py_obj);
+    return NULL;
+  }
+  // Py_DECREF py_obj and return result
+  Py_DECREF(py_obj);
+  return repr_str;
 }
 
 // docstrings for the members of the GradSolverResult
@@ -256,16 +294,17 @@ PyDoc_STRVAR(
 static PyTypeObject GradSolverResult_type = {
   PyVarObject_HEAD_INIT(NULL, 0)
   // class name, class docstring, size of GradSolverResult struct
-  .tp_name = "solvers.GradSolverResult",
+  .tp_name = "solvers." GradSolverResult_name,
   .tp_doc = GradSolverResult_doc,
   .tp_basicsize = sizeof(GradSolverResult),
   // doesn't contain any items, no Py_TPFLAGS_BASETYPE flag (final)
   .tp_itemsize = 0,
   .tp_flags = Py_TPFLAGS_DEFAULT,
-  // custom new, dealloc, members
+  // custom new, dealloc, members, __repr__ implementation
   .tp_new = GradSolverResult_new,
   .tp_dealloc = (destructor) GradSolverResult_dealloc,
-  .tp_members = GradSolverResult_members
+  .tp_members = GradSolverResult_members,
+  .tp_repr = (reprfunc) GradSolverResult_repr
 };
 
 PyDoc_STRVAR(
@@ -488,7 +527,7 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
   double obj_imp = DBL_MAX;
   // consecutive iterations where obj value has not improved by at least tol
   Py_ssize_t n_no_change = 0;
-  // number of iterations run - 1
+  // number of iterations completed
   Py_ssize_t iter_i = 0;
   // number of times objective has been evaluated
   Py_ssize_t n_obj_eval = 1;
@@ -692,7 +731,7 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
   Py_DECREF(grad_var);
   /**
    * we now build new argument tuple from params, obj_val (convert), grad_val,
-   * n_obj_eval (convert), n_grad_eval (convert), iter_i + 1 (convert). first,
+   * n_obj_eval (convert), n_grad_eval (convert), iter_i (convert). first,
    * we need to convert obj_val to Python float and n_* to Python int.
    */
   obj_val_ = PyFloat_FromDouble(obj_val);
@@ -719,7 +758,7 @@ static PyObject *adam_impl(PyObject *self, PyObject *args, PyObject *kwargs) {
     Py_DECREF(n_obj_eval_);
     return NULL;
   }
-  PyObject *n_iter_ = PyLong_FromSsize_t(iter_i + 1);
+  PyObject *n_iter_ = PyLong_FromSsize_t(iter_i);
   // on error, Py_DECREF params, grad_val, obj_val_, n_obj_eval_, n_grad_eval_
   if (n_obj_eval_ == NULL) {
     Py_DECREF(params);
