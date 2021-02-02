@@ -22,10 +22,6 @@ extern "C" {
 
 #include "check_helpers.h"
 
-// whether to exit the test runner immediately if Py_FinalizeEx returns an
-// error. set to false by default so other tests can run.
-int Py_Finalize_err_stop;
-
 // long option names
 #define help_longopt "help"
 #define timeout_longopt "timeout"
@@ -68,10 +64,9 @@ int main(int argc, char **argv) {
   // verbosity flag, fork mode flag. verbosity flag false initially while the
   // fork mode flag is true initially.
   int verbosity_flag, fork_mode_flag;
+  verbosity_flag = false, fork_mode_flag = true;
   // number of seconds before a test times out
   double timeout = 300;
-  verbosity_flag = false;
-  fork_mode_flag = true;
   // get arguments using getopt_long
   while (true) {
     // long option index and value (short option flag) returned by getopt_long

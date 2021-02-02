@@ -55,7 +55,7 @@ def _setup():
                 sources = [
                     _PACKAGE_NAME + "/" + _EXT_NAME + ".c"
                 ],
-            ),
+            )
         ]
     )
 
