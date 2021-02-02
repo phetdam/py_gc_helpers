@@ -68,7 +68,7 @@ static PyObject *gc_disable(void);
 static PyObject *gc_isenabled(void);
 
 // void ** holding the entire API
-void **PYGCH_API_UNIQ_SYMBOL[] = {
+void *PYGCH_API_UNIQ_SYMBOL[] = {
   // pointer to hold the gc module
   NULL,
   // utility functions provided by py_gch.h
