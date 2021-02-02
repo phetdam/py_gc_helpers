@@ -21,7 +21,9 @@ Quickstart
 ----------
 
 All you need is the ``.h`` file in the ``include`` directory and you're ready
-to go.
+to go. You can either copy this somewhere into one of your projects or copy it
+into ``/usr/local/include`` or any other include directory checked by your
+C/C++ preprocessor.
 
 Python C extension modules
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
