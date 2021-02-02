@@ -18,7 +18,7 @@
 #include "numpy/arrayobject.h"
 #include "numpy/npy_math.h"
 
-#include "py_gch.h"
+//#include "py_gch.h"    // uncomment once the API is finalized
 
 PyDoc_STRVAR(
   module_doc,

@@ -21,6 +21,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 #include "check_helpers.h"
+#include "py_gch_suite.h"
 
 // long option names
 #define help_longopt "help"
@@ -132,22 +133,22 @@ int main(int argc, char **argv) {
     );
     return EXIT_FAILURE;
   }
-  /*
   // done with option parsing. instantiate test suites; no free call necessary.
   // if suites are NULL, there was error, so print error + return EXIT_FAILURE
+  /*
   Suite *pytest_suite = make_pytest_suite(timeout);
   if (pytest_suite == NULL) {
     fprintf(stderr, "error: %s: make_pytest_suite returned NULL\n", __func__);
     return EXIT_FAILURE;
   }
-  Suite *timeitresult_suite = make_timeitresult_suite(timeout);
-  if (timeitresult_suite == NULL) {
+  */
+  Suite *py_gch_suite = make_py_gch_suite(timeout);
+  if (py_gch_suite == NULL) {
     fprintf(
-      stderr, "error: %s: make_timeitresult_suite returned NULL\n", __func__
+      stderr, "error: %s: make_py_gch_suite returned NULL\n", __func__
     );
     return EXIT_FAILURE;
   }
-  */
   /**
    * create our suite runner and run all tests. CK_ENV uses value of environment
    * variable CK_VERBOSITY and defaults to CK_NORMAL if CK_VERBOSITY not set.
@@ -156,14 +157,13 @@ int main(int argc, char **argv) {
    */
   /*
   SRunner *runner = srunner_create(pytest_suite);
+  */
+  SRunner *runner = srunner_create(py_gch_suite);
   srunner_set_fork_status(runner, fork_mode_flag ? CK_FORK : CK_NOFORK);
-  srunner_add_suite(runner, timeitresult_suite);
   srunner_run_all(runner, verbosity_flag ? CK_VERBOSE : CK_ENV);
   // get number of failed tests and free runner
   int n_failed = srunner_ntests_failed(runner);
   srunner_free(runner);
   // succeed/fail depending on value of number of failed cases
   return (n_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
-  */
- return EXIT_SUCCESS;
 }

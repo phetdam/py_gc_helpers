@@ -1,17 +1,16 @@
 # Makefile to build py_gch_example, test runner, and C++ demo.
 
-# package name and source folder for extension source
-PKG_NAME       = py_gch_example
-_EXT_DIR       = examples/$(PKG_NAME)
+# package name/source folder for extension source
+PKG_NAME       = py_gch_demo
 # directory for libcheck test runner code
 CHECK_DIR      = check
 # C and C++ compilers, of course
 CC             = gcc
 CPP            = g++
 # dependencies for the extension modules
-XDEPS          = $(wildcard $(_EXT_DIR)/*.c)
+XDEPS          = $(wildcard $(PKG_NAME)/*.c)
 # dependencies for test running code
-CHECK_DEPS     = $(wildcard $(CHECK_DIR)/*.c) $(wildcard $(CHECK_DIR)/*.cpp)
+CHECK_DEPS     = $(wildcard $(CHECK_DIR)/*.c)
 # required Python source files in the package (modules and tests)
 PYDEPS         = $(wildcard $(PKG_NAME)/*.py) $(wildcard $(PKG_NAME)/*/*.py)
 # set python; on docker specify PYTHON value externally using absolute path
@@ -27,10 +26,10 @@ PY_CFLAGS     ?= -fPIE $(shell python3-config --cflags)
 # linker error. libpython3.8 is in /usr/lib/x86_64-linux-gnu for me.
 PY_LDFLAGS    ?= $(shell python3-config --embed --ldflags)
 # compile flags for compiling test runner. my libcheck is in /usr/local/lib.
-# -Wl,--version-script,<version_script_file> might be needed later if i want
-# better control over symbol export. -fvisibility=hidden is used for now to
-# make sure none of the runner symbols are exported.
-CHECK_CFLAGS   = $(PY_CFLAGS) -I$(_TIMER_DIR) -fvisibility=hidden
+# if C++: -Wl,--version-script,<version_script_file> might be needed later if i
+# want better control over symbol export. -fvisibility=hidden is used for now
+# to make sure none of the runner symbols are exported.
+CHECK_CFLAGS   = $(PY_CFLAGS) -Iinclude # -fvisibility=hidden
 # linker flags for compiling test runner
 CHECK_LDFLAGS  = $(PY_LDFLAGS) -lcheck
 # flags to pass to the libcheck test runner
@@ -62,7 +61,7 @@ inplace: $(XDEPS)
 
 # build test runner and run unit tests using check. show flags passed to g++
 check: $(CHECK_DEPS) inplace
-	$(CPP) $(CHECK_CFLAGS) -o runner $(CHECK_DEPS) $(CHECK_LDFLAGS)
+	$(CC) $(CHECK_CFLAGS) -o runner $(CHECK_DEPS) $(CHECK_LDFLAGS)
 	@./runner $(RUNNER_FLAGS)
 
 # make source and wheel

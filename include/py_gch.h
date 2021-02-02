@@ -1,6 +1,12 @@
 /**
  * @file py_gch.h
  * @brief A lightweight API for accessing Python `gc` from C/C++.
+ * @note Before including `py_gch.h`, it is highly recommended to
+ *     `#define PYGCH_API_UNIQ_SYMBOL <unique_tag>` to minimize any naming
+ *     conflicts when linking with external libraries. Python C extension
+ *     modules are typically advised to define all their members, except for
+ *     the `PyInit_*` function, to be `static`. Name clashes can happen,
+ *     however, if you use a name that is already defined by `py_gch.h`.
  * @note When including `py_gch.h` in multiple files, users must
  *     `#define PYGCH_NO_DEFINE` before the `#include` in all files except one.
  * 
@@ -28,36 +34,56 @@ extern "C" {
 #include <stdbool.h>
 #include <stdio.h>
 
-/*
- * static PyObject * for the gc module and its members. see the note at the
- * top of the file for an explanation on PYGCH_NO_DEFINE.
- */
-#ifdef PYGCH_NO_DEFINE
-extern PyObject
-  *PyGCH_mod_o, *PyGCH_enable_o, *PyGCH_disable_o, *PyGCH_isenabled_o;
-#else
-PyObject *PyGCH_mod_o = NULL;
-PyObject *PyGCH_enable_o = NULL;
-PyObject *PyGCH_disable_o = NULL;
-PyObject *PyGCH_isenabled_o = NULL;
-#endif /* PYGCH_NO_DEFINE */
+#ifndef PYGCH_API_UNIQ_SYMBOL
+#define PYGCH_API_UNIQ_SYMBOL _PyGCH_API
+#endif /* PYGCH_API_UNIQ_SYMBOL */
 
-/**
- * Returns `1` if `gc` has been imported, `0` otherwise.
- */
-#define PyGCH_gc_imported() (PyGCH_mod_o == NULL) ? false : true
+// public macros that give names to the py_gch.h API
+#define PyGCH_gc_imported() \
+  (((PyObject *) PYGCH_API_UNIQ_SYMBOL[0] == NULL) ? false : true)
+#define PyGCH_gc_unique_import \
+  (*(int (*)(void)) PYGCH_API_UNIQ_SYMBOL[1])
+#define PyGCH_gc_member_unique_import(member_name, dest) \
+  (*(int (*)(char const *, PyObject **)) \
+    PYGCH_API_UNIQ_SYMBOL[2])(member_name, dest)
+#define PyGCH_gc_enable \
+  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[4])
+#define PyGCH_gc_disable \
+  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[6])
+#define PyGCH_gc_isenabled \
+  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[8])
 
 #ifdef PYGCH_NO_DEFINE
-int PyGCH_gc_unique_import(void);
-int PyGCH_gc_member_unique_import(char const *, PyObject **);
-PyObject *PyGCH_gc_enable(void);
-PyObject *PyGCH_gc_disable(void);
-PyObject *PyGCH_gc_isenabled(void);
-/*
-Py_ssize_t PyGCH_gc_collect(void);
-Py_ssize_t PyGCH_gc_collect_gen(int);
-*/
+extern void **PYGCH_API_UNIQ_SYMBOL
 #else
+/*
+ * We need to declare all the functions before defining the void **
+ * PYGCH_API_UNIQ_SYMBOL array or else the compiler will give an error.
+ */
+static int gc_unique_import(void);
+static int gc_member_unique_import(char const *, PyObject **);
+static PyObject *gc_enable(void);
+static PyObject *gc_disable(void);
+static PyObject *gc_isenabled(void);
+
+// void ** holding the entire API
+void **PYGCH_API_UNIQ_SYMBOL[] = {
+  // pointer to hold the gc module
+  NULL,
+  // utility functions provided by py_gch.h
+  (void *) gc_unique_import,
+  (void *) gc_member_unique_import,
+  /*
+   * function pointers for the API. each two elements composes a "unit", where
+   * each unit is the pair (function pointer, PyObject *). The PyObject *
+   * represents the imported function from gc and the function pointer is its
+   * corresponding C API function provided by py_gch.h.
+   */
+  (void *) gc_enable, NULL,
+  (void *) gc_disable, NULL,
+  (void *) gc_isenabled, NULL
+};
+
 /**
  * Imports `gc` if not imported, else no-op.
  * 
@@ -68,9 +94,10 @@ Py_ssize_t PyGCH_gc_collect_gen(int);
  * 
  * @returns `1` on success (`gc` imported), `0` on failure.
  */
-int PyGCH_gc_unique_import(void) {
-  if (PyGCH_mod_o == NULL) {
-    PyGCH_mod_o = PyImport_ImportModule("gc");
+static int
+gc_unique_import(void) {
+  if (PYGCH_API_UNIQ_SYMBOL[0] == NULL) {
+    PYGCH_API_UNIQ_SYMBOL[0] = (void *) PyImport_ImportModule("gc");
   }
   return PyGCH_gc_imported();
 }
@@ -89,7 +116,8 @@ int PyGCH_gc_unique_import(void) {
  * @param dest Address of the `PyObject *` to store the reference to the member
  * @returns `1` on sucess (`gc` member imported), `0` on failure.
  */
-int PyGCH_gc_member_unique_import(char const *member_name, PyObject **dest) {
+static int
+gc_member_unique_import(char const *member_name, PyObject **dest) {
   // if we haven't imported gc, return false (exception will be set)
   if (!PyGCH_gc_unique_import()) {
     return false;
@@ -99,7 +127,9 @@ int PyGCH_gc_member_unique_import(char const *member_name, PyObject **dest) {
     return true;
   }
   // get attribute and write to dest. if err, *dest is NULL + exception set
-  *dest = PyObject_GetAttrString(PyGCH_mod_o, member_name);
+  *dest = PyObject_GetAttrString(
+    (PyObject *) PYGCH_API_UNIQ_SYMBOL[0], member_name
+  );
   if (*dest == NULL) {
     return false;
   }
@@ -114,9 +144,14 @@ int PyGCH_gc_member_unique_import(char const *member_name, PyObject **dest) {
  * 
  * @returns New reference to `Py_None` on success, `NULL` on failure.
  */
-PyObject *PyGCH_gc_enable(void) {
-  // get gc.enable if PyGCH_enable_o is NULL. exception set on error
-  if (!PyGCH_gc_member_unique_import("enable", &PyGCH_enable_o)) {
+static PyObject *
+gc_enable(void) {
+  // get gc.enable if pointer is NULL. exception set on error
+  if (
+    !PyGCH_gc_member_unique_import(
+      "enable", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 4)
+    )
+  ) {
     return NULL;
   }
   /**
@@ -124,7 +159,9 @@ PyObject *PyGCH_gc_enable(void) {
    * ordinarily this would be a horrible error, but since Py_None starts with a
    * reference count of 1, this is not a horrible thing to do.
    */
-  PyObject *py_return = PyObject_CallObject(PyGCH_enable_o, NULL);
+  PyObject *py_return = PyObject_CallObject(
+    (PyObject *) PYGCH_API_UNIQ_SYMBOL[4], NULL
+  );
   Py_XDECREF(py_return);
   return py_return;
 }
@@ -137,13 +174,20 @@ PyObject *PyGCH_gc_enable(void) {
  * 
  * @returns Borrowed reference to `Py_None` on success, `NULL` on failure.
  */
-PyObject *PyGCH_gc_disable(void) {
-  // get gc.disable if PyGCH_disable_o is NULL. exception set on error
-  if (!PyGCH_gc_member_unique_import("disable", &PyGCH_disable_o)) {
+static PyObject *
+gc_disable(void) {
+  // get gc.disable if pointer is NULL. exception set on error
+  if (
+    !PyGCH_gc_member_unique_import(
+      "disable", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 6)
+    )
+  ) {
     return NULL;
   }
   // call gc.disable and Py_XDECREF its return value before returning
-  PyObject *py_return = PyObject_CallObject(PyGCH_disable_o, NULL);
+  PyObject *py_return = PyObject_CallObject(
+    (PyObject *) PYGCH_API_UNIQ_SYMBOL[6], NULL
+  );
   Py_XDECREF(py_return);
   return py_return;
 }
@@ -158,19 +202,27 @@ PyObject *PyGCH_gc_disable(void) {
  *     borrowed reference to `Py_False` if garbage collection is disabled,
  *     otherwise `NULL` on error.
  */
-PyObject *PyGCH_gc_isenabled(void) {
-  // get gc.isenabled if PyGCH_isenabled_o is NULL. exception set on error
-  if (!PyGCH_gc_member_unique_import("disable", &PyGCH_isenabled_o)) {
+static PyObject *
+gc_isenabled(void) {
+  // get gc.isenabled if pointer is NULL. exception set on error
+  if (
+    !PyGCH_gc_member_unique_import(
+      "disable", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 8)
+    )
+  ) {
     return NULL;
   }
   /**
    * call gc.isenabled and Py_XDECREF its return value for borrowed ref. like
    * Py_None, Py_True and Py_False start out with reference counts of 1.
    */
-  PyObject *py_return = PyObject_CallObject(PyGCH_disable_o, NULL);
+  PyObject *py_return = PyObject_CallObject(
+    (PyObject *) PYGCH_API_UNIQ_SYMBOL[8], NULL
+  );
   Py_XDECREF(py_return);
   return py_return;
 }
+
 #endif /* PYGCH_NO_DEFINE */
 
 #ifdef __cplusplus
