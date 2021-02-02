@@ -20,10 +20,9 @@ are no C analogues to calling ``gc.disable``, ``gc.enable`` and so on [#]_.
 Quickstart
 ----------
 
-All you need is the ``.h`` file in the ``include`` directory and you're ready
-to go. You can either copy this somewhere into one of your projects or copy it
-into ``/usr/local/include`` or any other include directory checked by your
-C/C++ preprocessor.
+All you need is ``py_gch.h`` from the ``include`` directory. You can either
+copy it directly into your project or copy it into ``/usr/local/include``
+or any other include directory checked by your C/C++ preprocessor.
 
 Python C extension modules
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
