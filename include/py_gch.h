@@ -46,12 +46,13 @@ extern "C" {
 #define PyGCH_gc_member_unique_import(member_name, dest) \
   (*(int (*)(char const *, PyObject **)) \
     PYGCH_API_UNIQ_SYMBOL[2])(member_name, dest)
+// all gc function/member macros should have odd indices
 #define PyGCH_gc_enable \
-  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[4])
+  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[3])
 #define PyGCH_gc_disable \
-  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[6])
+  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[5])
 #define PyGCH_gc_isenabled \
-  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[8])
+  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[7])
 
 #ifdef PYGCH_NO_DEFINE
 extern void **PYGCH_API_UNIQ_SYMBOL
@@ -207,7 +208,7 @@ gc_isenabled(void) {
   // get gc.isenabled if pointer is NULL. exception set on error
   if (
     !PyGCH_gc_member_unique_import(
-      "disable", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 8)
+      "isenabled", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 8)
     )
   ) {
     return NULL;

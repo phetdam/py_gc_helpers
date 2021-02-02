@@ -62,6 +62,25 @@ PY_C_API_REQUIRED START_TEST(test_gc_member_unique_import) {
 } END_TEST
 
 /**
+ * Test that `PyGCH_gc_enable`, `PyGCH_gc_disable`, `PyGCH_gc_isenabled` work.
+ * 
+ * @note We have to test them all together because `PyGCH_gc_isenabled` is
+ *     needed to check whether the collector is enabled/disabled.
+ */
+PY_C_API_REQUIRED START_TEST(test_enabled_disabled_isenabled) {
+  // borrowed ref returned by PyGCH_is_gc_enabled should be Py_True
+  ck_assert_ptr_eq(Py_True, PyGCH_gc_isenabled());
+  // PyGCH_gc_disable should return Py_None + PyGCH_gc_isenabled should then
+  // be equal to Py_False (all refs are borrowed)
+  ck_assert_ptr_eq(Py_None, PyGCH_gc_disable());
+  ck_assert_ptr_eq(Py_False, PyGCH_gc_isenabled());
+  // PyGCH_gc_enable should return Py_None + PyGCH_gc_isenabled should then
+  // return a borrowed ref to Py_True
+  ck_assert_ptr_eq(Py_None, PyGCH_gc_enable());
+  ck_assert_ptr_eq(Py_True, PyGCH_gc_isenabled());
+} END_TEST
+
+/**
  * Create test suite `"py_gch_suite"` using static tests defined above.
  * 
  * The `"py_core"` test case uses the `py_setup` and `py_teardown` functions
@@ -88,6 +107,7 @@ Suite *make_py_gch_suite(double timeout) {
   // register cases together with tests, add cases to suite, and return suite
   tcase_add_test(tc_core, test_gc_unique_import);
   tcase_add_test(tc_core, test_gc_member_unique_import);
+  tcase_add_test(tc_core, test_enabled_disabled_isenabled);
   suite_add_tcase(suite, tc_core);
   return suite;
 }
