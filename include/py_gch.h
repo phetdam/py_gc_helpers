@@ -5,8 +5,8 @@
  *     `#define PYGCH_API_UNIQ_SYMBOL <unique_tag>` to minimize any naming
  *     conflicts when linking with external libraries. Python C extension
  *     modules are typically advised to define all their members, except for
- *     the `PyInit_*` function, to be `static`. Name clashes can happen,
- *     however, if you use a name that is already defined by `py_gch.h`.
+ *     the `PyInit_*` function, to be `static`. Name clashes can happen within
+ *     your code however if you use a name already defined by `py_gch.h`.
  * @note When including `py_gch.h` in multiple files, users must
  *     `#define PYGCH_NO_DEFINE` before the `#include` in all files except one.
  * 
