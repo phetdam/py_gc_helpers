@@ -19,24 +19,46 @@
 #define gc_module ((PyObject *) gc_module_)
 
 /**
- * Test that `PyGCH_unique_import` really imports `gc` once.
+ * Test that `PyGCH_gc_unique_import` really imports `gc` once.
  * 
  * @note Reference counting is sloppy here, as on failure there are a couple
  *     places where `Py_DECREF` is necessary.
  */
-PY_C_API_REQUIRED START_TEST(test_unique_import) {
+PY_C_API_REQUIRED START_TEST(test_gc_unique_import) {
   // set gc_module to NULL so this test is reproducible. we need the separate
   // gc_module_ macro since the cast in gc_module doesn't let us write.
   gc_module_ = NULL;
   // run unique import. it should return true
   ck_assert_msg(PyGCH_gc_unique_import(), "PyGCH_unique_import failed (1)");
   // current reference count to the gc module (isn't necessarily 1)
-  Py_ssize_t gc_refcnt = Py_REFCNT(gc_module);
+  Py_ssize_t refcnt = Py_REFCNT(gc_module);
   // run again to see if the reference count changes
   ck_assert_msg(PyGCH_gc_unique_import(), "PyGCH_unique_import failed (2)");
   // reference count should not have changed. if it has, we should do cleanup,
   // but that's ok since the interpreter is going to be finalized anyways.
-  ck_assert_double_eq(Py_REFCNT(gc_module), gc_refcnt);
+  ck_assert_double_eq(Py_REFCNT(gc_module), refcnt);
+} END_TEST
+
+/**
+ * Test that `PyGCH_gc_member_unique_import` imports members once.
+ */
+PY_C_API_REQUIRED START_TEST(test_gc_member_unique_import) {
+  // target to write PyObject * of imported member to. must start as  NULL.
+  PyObject *member = NULL;
+  // import gc.enable; PyGCH_gc_member_unique_import should return true
+  ck_assert_msg(
+    PyGCH_gc_member_unique_import("enable", &member),
+    "PyGCH_gc_member_unique_import failed (1)"
+  );
+  // get reference count of member
+  Py_ssize_t refcnt = Py_REFCNT(member);
+  // call PyGCH_gc_member_unique_import again (should return true)
+  ck_assert_msg(
+    PyGCH_gc_member_unique_import("enable", &member),
+    "PyGCH_gc_member_unique_import failed (2)"
+  );
+  // reference count should not have changed
+  ck_assert_double_eq(Py_REFCNT(member), refcnt);
 } END_TEST
 
 /**
@@ -64,7 +86,8 @@ Suite *make_py_gch_suite(double timeout) {
   // add py_setup and py_teardown to tc_core test case (required)
   tcase_add_checked_fixture(tc_core, py_setup, py_teardown);
   // register cases together with tests, add cases to suite, and return suite
-  tcase_add_test(tc_core, test_unique_import);
+  tcase_add_test(tc_core, test_gc_unique_import);
+  tcase_add_test(tc_core, test_gc_member_unique_import);
   suite_add_tcase(suite, tc_core);
   return suite;
 }
