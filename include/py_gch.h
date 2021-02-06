@@ -32,11 +32,15 @@ extern "C" {
 #endif /* PY_SSIZE_T_CLEAN */
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 
 #ifndef PYGCH_API_UNIQ_SYMBOL
 #define PYGCH_API_UNIQ_SYMBOL _PyGCH_API
 #endif /* PYGCH_API_UNIQ_SYMBOL */
+
+// typedef gc flags as size_t
+typedef size_t gcflag_t;
 
 /*
  * macro for setting all initially NULL members in PYGCH_API_UNIQ_SYMBOL back
@@ -48,7 +52,8 @@ extern "C" {
  */
 #define _PyGCH_NULLIFY_API() \
   PYGCH_API_UNIQ_SYMBOL[0] = PYGCH_API_UNIQ_SYMBOL[5] = \
-  PYGCH_API_UNIQ_SYMBOL[7] = PYGCH_API_UNIQ_SYMBOL[9] = NULL;
+  PYGCH_API_UNIQ_SYMBOL[7] = PYGCH_API_UNIQ_SYMBOL[9] = \
+  PYGCH_API_UNIQ_SYMBOL[11] = PYGCH_API_UNIQ_SYMBOL[13] = NULL;
 // replacements for Py_Finalize[Ex] that call _PyGCH_NULLFIY_API. note that we
 // cannot use a macro for Py_FinalizeEx if we want to keep the return value.
 #define PyGCH_Finalize() \
@@ -63,13 +68,19 @@ extern "C" {
   (*(int (*)(void)) PYGCH_API_UNIQ_SYMBOL[2])
 #define PyGCH_gc_member_unique_import \
   (*(int (*)(char const *, PyObject **)) PYGCH_API_UNIQ_SYMBOL[3])
-// all gc function/member macros should have odd indices
+// all gc function/member macros should have even indices
 #define PyGCH_gc_enable \
   (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[4])
 #define PyGCH_gc_disable \
   (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[6])
 #define PyGCH_gc_isenabled \
   (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[8])
+#define PyGCH_gc_collect_gen \
+  (*(PyObject *(*)(Py_ssize_t)) PYGCH_API_UNIQ_SYMBOL[10])
+#define PyGCH_gc_COLLECT_GEN \
+  (*(Py_ssize_t (*)(Py_ssize_t)) PYGCH_API_UNIQ_SYMBOL[12])
+#define PyGCH_gc_collect PyGCH_gc_collect_gen(-1)
+#define PyGCH_gc_COLLECT PyGCH_gc_COLLECT_GEN(-1)
 
 #ifdef PYGCH_NO_DEFINE
 extern void **PYGCH_API_UNIQ_SYMBOL
@@ -84,6 +95,17 @@ static int gc_member_unique_import(char const *, PyObject **);
 static PyObject *gc_enable(void);
 static PyObject *gc_disable(void);
 static PyObject *gc_isenabled(void);
+static PyObject *gc_collect_gen(Py_ssize_t);
+static Py_ssize_t gc_COLLECT_GEN(Py_ssize_t);
+static gcflag_t gc_get_flag(char const *, void **);
+
+/*
+ * note: API scheduled for big overhaul! individual wrappers are to also take
+ * a void ** address for the PyObject * for the PyCFunction or Python member
+ * they are referring to, which will allow fewer hardcoding of API indices in
+ * the code (these are a pain to update). only the macros will have hardcoded
+ * indices. this design decision should have been made earlier.
+ */
 
 // void ** holding the entire API
 void *PYGCH_API_UNIQ_SYMBOL[] = {
@@ -97,12 +119,15 @@ void *PYGCH_API_UNIQ_SYMBOL[] = {
   /*
    * function pointers for the API. each two elements composes a "unit", where
    * each unit is the pair (function pointer, PyObject *). The PyObject *
-   * represents the imported function from gc and the function pointer is its
-   * corresponding C API function provided by py_gch.h.
+   * represents the imported function/member from gc and the function pointer
+   * is its corresponding C API retrieval function provided by py_gch.h.
    */
-  (void *) gc_enable, NULL,
-  (void *) gc_disable, NULL,
-  (void *) gc_isenabled, NULL
+  (void *) gc_enable, NULL,            /*  4,  5 */    /* C func, PyObject * */
+  (void *) gc_disable, NULL,           /*  6,  7 */
+  (void *) gc_isenabled, NULL,         /*  8,  9 */
+  (void *) gc_collect_gen, NULL,       /* 10, 11 */
+  (void *) gc_COLLECT_GEN, NULL,       /* 12, 13 (13 always NULL) */
+  (void *) gc_get_flag, NULL           /* 14, 15 */
 };
 
 /**
@@ -152,7 +177,7 @@ gc_unique_import(void) {
 static int
 gc_member_unique_import(char const *member_name, PyObject **dest) {
   // if we haven't imported gc, return false (exception will be set)
-  if (!PyGCH_gc_unique_import()) {
+  if (!gc_unique_import()) {
     return false;
   }
   // if *dest is not NULL, assume that member has already been imported
@@ -181,7 +206,7 @@ static PyObject *
 gc_enable(void) {
   // get gc.enable if pointer is NULL. exception set on error
   if (
-    !PyGCH_gc_member_unique_import(
+    !gc_member_unique_import(
       "enable", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 5)
     )
   ) {
@@ -211,7 +236,7 @@ static PyObject *
 gc_disable(void) {
   // get gc.disable if pointer is NULL. exception set on error
   if (
-    !PyGCH_gc_member_unique_import(
+    !gc_member_unique_import(
       "disable", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 7)
     )
   ) {
@@ -239,7 +264,7 @@ static PyObject *
 gc_isenabled(void) {
   // get gc.isenabled if pointer is NULL. exception set on error
   if (
-    !PyGCH_gc_member_unique_import(
+    !gc_member_unique_import(
       "isenabled", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 9)
     )
   ) {
@@ -254,6 +279,114 @@ gc_isenabled(void) {
   );
   Py_XDECREF(py_return);
   return py_return;
+}
+
+/**
+ * Runs collection on the specified generation.
+ * 
+ * @param gen Generation to run collection on, `0` to `2` inclusive. Pass `-1`
+ *     to run a full collection, same as invoking `gc.collect` without args.
+ * @returns New reference to a `PyLongObject` giving the number of unreachable
+ *     objects or `NULL` on failure, where an exception will be set.
+ */
+static PyObject *
+gc_collect_gen(Py_ssize_t gen) {
+  // get gc.collect if pointer is NULL. exception set on error
+  if (
+    !gc_member_unique_import(
+      "collect", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 11)
+    )
+  ) {
+    return NULL;
+  }
+  // if gen == -1, then call without arguments and return value
+  if (gen == -1) {
+    return PyObject_CallObject(
+      (PyObject *) PYGCH_API_UNIQ_SYMBOL[11], NULL
+    );
+  }
+  // new argument tuple to pass to gc.collect
+  PyObject *args = PyTuple_New(1);
+  if (args == NULL) {
+    return NULL;
+  }
+  // convert gen to PyLongObject. on error, return NULL (exception set)
+  PyObject *gen_ = PyLong_FromSsize_t(gen);
+  if (gen_ == NULL) {
+    return NULL;
+  }
+  // steal reference using PyTuple_SET_ITEM
+  PyTuple_SET_ITEM(args, 0, gen_);
+  // call gc.collect with args and get return value (NULL on error)
+  PyObject *res = PyObject_CallObject(
+    (PyObject *) PYGCH_API_UNIQ_SYMBOL[11], args
+  );
+  // clean up and return
+  Py_DECREF(args);
+  return res;
+}
+
+/**
+ * `gc_collect_gen` wrapper that returns `Py_ssize_t` instead of `PyObject *`.
+ * 
+ * @param gen Generation to run collection on, `0` to `2` inclusive. Pass `-1`
+ *     to run a full collection, same as invoking `gc.collect` without args.
+ * @returns The nonnegative number of unreachable objects or `-1` on error.
+ *     An exception will be automatically set on error.
+ */
+static Py_ssize_t
+gc_COLLECT_GEN(Py_ssize_t gen) {
+  // get result from gc_collect_gen. if NULL, return -1 (error indicator set)
+  PyObject *res_ = gc_collect_gen(gen);
+  if (res_ == NULL) {
+    return -1;
+  }
+  // convert back to Py_ssize_t. -1 on error (indicator set).
+  Py_ssize_t res = PyLong_AsSsize_t(res_);
+  // Py_DECREF res_ and return res (-1 on error)
+  Py_DECREF(res_);
+  return res;
+}
+
+/**
+ * Special function for importing a flag from `gc`.
+ * 
+ * Instead of the pointer to the member itself being stored in the `void **`
+ * API, on successful importing and conversion to `size_t` the flag itself
+ * is cast to `void *` and stored in the API. this way, retrieval is faster
+ * than constantly re-converting the member.
+ * 
+ * @param flag_name Name of the flag to retrieve
+ * @param api_addr `void **` address to store the flag value as a `void *`
+ * @returns Flag value as a `gcflag_t` or `0` on failure with set exceptio.
+ *     If a flag is supposed to be zero, use `PyErr_Occurred` to check whether
+ *     an exception has been set or not.
+ */
+static gcflag_t
+gc_get_flag(char const *flag_name, void **api_addr) {
+  // if *api_addr is not NULL, cast value to gcflag_t and return
+  if (*api_addr != NULL) {
+    return (gcflag_t) *api_addr;
+  }
+  // else get gc.flag_name if *api_addr is NULL. exception set on error
+  if (!gc_member_unique_import(flag_name, (PyObject **) api_addr)) {
+    return 0;
+  }
+  /*
+   * cast to unsigned long, Py_DECREF *api_addr, and set it to NULL. we do
+   * this since the ref is no longer needed and in case conversion fails so
+   * that this function can be called again to re-import the flag member.
+   */
+  gcflag_t flag = PyLong_AsUnsignedLongMask((PyObject *) *api_addr);
+  Py_DECREF((PyObject *) *api_addr);
+  *api_addr = NULL;
+  // -1 and exception set on error.
+  if (flag == (unsigned long) -1) {
+    return 0;
+  }
+  // write flag to api_addr, casting it to a void *, and return flag value
+  *api_addr = (void *) flag;
+  return flag;
 }
 
 #endif /* PYGCH_NO_DEFINE */
