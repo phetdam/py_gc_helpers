@@ -2,15 +2,15 @@
 
 # package name/source folder for extension source
 PKG_NAME       = py_gch_demo
-# directory for libcheck test runner code
-CHECK_DIR      = check
+# directory for libgtest test runner code
+GTEST_DIR      = gtest
 # C and C++ compilers, of course
 CC             = gcc
 CPP            = g++
 # dependencies for the extension modules
 XDEPS          = $(wildcard $(PKG_NAME)/*.c)
 # dependencies for test running code
-CHECK_DEPS     = $(wildcard $(CHECK_DIR)/*.c)
+GTEST_DEPS     = $(wildcard $(GTEST_DIR)/*.cc)
 # required Python source files in the package (modules and tests)
 PYDEPS         = $(wildcard $(PKG_NAME)/*.py) $(wildcard $(PKG_NAME)/*/*.py)
 # set python; on docker specify PYTHON value externally using absolute path
@@ -20,19 +20,16 @@ BUILD_FLAGS    =
 # directory to save distributions to; use absolute path on docker
 DIST_FLAGS    ?= --dist-dir ./dist
 # python compiler and linker flags for use when linking python into external C
-# code; can be externally specified. gcc requires -fPIE.
+# code; can be externally specified. gcc/g++ requires -fPIE.
 PY_CFLAGS     ?= -fPIE $(shell python3-config --cflags)
 # ubuntu needs --embed, else -lpythonx.y is omitted by --ldflags, which is a
 # linker error. libpython3.8 is in /usr/lib/x86_64-linux-gnu for me.
 PY_LDFLAGS    ?= $(shell python3-config --embed --ldflags)
-# compile flags for compiling test runner. my libcheck is in /usr/local/lib.
-# if C++: -Wl,--version-script,<version_script_file> might be needed later if i
-# want better control over symbol export. -fvisibility=hidden is used for now
-# to make sure none of the runner symbols are exported.
-CHECK_CFLAGS   = $(PY_CFLAGS) -Iinclude # -fvisibility=hidden
-# linker flags for compiling test runner
-CHECK_LDFLAGS  = $(PY_LDFLAGS) -lcheck
-# flags to pass to the libcheck test runner
+# g++ compile flags for gtest runner. my libgtest.so is in /usr/local/lib.
+GTEST_CFLAGS   = $(PY_CFLAGS) -Iinclude
+# g++ linker flags for compiling gtest runner
+GTEST_LDFLAGS  = $(PY_LDFLAGS) -lgtest -lgtest_main
+# flags to pass to the gtest test runner
 RUNNER_FLAGS   =
 
 # phony targets
@@ -59,9 +56,9 @@ build: $(PYDEPS) $(XDEPS)
 inplace: $(XDEPS)
 	@$(PYTHON) setup.py build_ext --inplace
 
-# build test runner and run unit tests using check. show flags passed to g++
-check: $(CHECK_DEPS) inplace
-	$(CC) $(CHECK_CFLAGS) -o runner $(CHECK_DEPS) $(CHECK_LDFLAGS)
+# build test runner and run gtest unit tests. show flags passed to g++
+check: $(GTEST_DEPS) inplace
+	$(CPP) $(GTEST_CFLAGS) -o runner $(GTEST_DEPS) $(GTEST_LDFLAGS)
 	@./runner $(RUNNER_FLAGS)
 
 # make source and wheel
