@@ -15,14 +15,13 @@
 #define gc_module_ PYGCH_API_UNIQ_SYMBOL[0]
 #define gc_module ((PyObject *) gc_module_)
 
-// gtest doesn't allow namespace prefix before the PyReqTest name (why?)
+// gtest macros don't allow namespace prefixes
 using gtest_helpers::PyReqTest;
 
 // empty namespace just to prevent global namespace pollution (good practice)
-
 namespace {
 
-class PyGCHTest: public PyReqTest {
+class PyGCHTest: public gtest_helpers::PyReqTest {
   protected:
   // override TearDown to NULL-ify API after interpreter finalization
   void TearDown() override {
