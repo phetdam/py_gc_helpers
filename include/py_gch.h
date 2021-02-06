@@ -38,21 +38,38 @@ extern "C" {
 #define PYGCH_API_UNIQ_SYMBOL _PyGCH_API
 #endif /* PYGCH_API_UNIQ_SYMBOL */
 
-// public macros that give names to the py_gch.h API
+/*
+ * macro for setting all initially NULL members in PYGCH_API_UNIQ_SYMBOL back
+ * to NULL. this should never be called directly by a user, but exists since
+ * py_gch.h functions determine whether or not to import a member from gc/gc
+ * itself based on whether the corresponding element in PYGCH_APY_UNIQ_SYMBOL
+ * is NULL or not. every time the interpreter is finalized, these elemenets
+ * need to be set to NULL again since the pointer values become invalidated.
+ */
+#define _PyGCH_NULLIFY_API() \
+  PYGCH_API_UNIQ_SYMBOL[0] = PYGCH_API_UNIQ_SYMBOL[5] = \
+  PYGCH_API_UNIQ_SYMBOL[7] = PYGCH_API_UNIQ_SYMBOL[9] = NULL;
+// replacements for Py_Finalize[Ex] that call _PyGCH_NULLFIY_API. note that we
+// cannot use a macro for Py_FinalizeEx if we want to keep the return value.
+#define PyGCH_Finalize() \
+  Py_Finalize(); \
+  _PyGCH_NULLIFY_API();
+#define PyGCH_FinalizeEx \
+  (*(int (*)(void)) PYGCH_API_UNIQ_SYMBOL[1])
+// macros that give names to the py_gch.h API
 #define PyGCH_gc_imported() \
   (((PyObject *) PYGCH_API_UNIQ_SYMBOL[0] == NULL) ? false : true)
 #define PyGCH_gc_unique_import \
-  (*(int (*)(void)) PYGCH_API_UNIQ_SYMBOL[1])
-#define PyGCH_gc_member_unique_import(member_name, dest) \
-  (*(int (*)(char const *, PyObject **)) \
-    PYGCH_API_UNIQ_SYMBOL[2])(member_name, dest)
+  (*(int (*)(void)) PYGCH_API_UNIQ_SYMBOL[2])
+#define PyGCH_gc_member_unique_import \
+  (*(int (*)(char const *, PyObject **)) PYGCH_API_UNIQ_SYMBOL[3])
 // all gc function/member macros should have odd indices
 #define PyGCH_gc_enable \
-  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[3])
+  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[4])
 #define PyGCH_gc_disable \
-  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[5])
+  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[6])
 #define PyGCH_gc_isenabled \
-  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[7])
+  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[8])
 
 #ifdef PYGCH_NO_DEFINE
 extern void **PYGCH_API_UNIQ_SYMBOL
@@ -61,6 +78,7 @@ extern void **PYGCH_API_UNIQ_SYMBOL
  * We need to declare all the functions before defining the void **
  * PYGCH_API_UNIQ_SYMBOL array or else the compiler will give an error.
  */
+static int _PyGCH_FinalizeEx(void);
 static int gc_unique_import(void);
 static int gc_member_unique_import(char const *, PyObject **);
 static PyObject *gc_enable(void);
@@ -71,6 +89,8 @@ static PyObject *gc_isenabled(void);
 void *PYGCH_API_UNIQ_SYMBOL[] = {
   // pointer to hold the gc module
   NULL,
+  // wrapper for Py_FinalizeEx that correctly NULL-ifies the NULL API elements
+  (void *) _PyGCH_FinalizeEx,
   // utility functions provided by py_gch.h
   (void *) gc_unique_import,
   (void *) gc_member_unique_import,
@@ -84,6 +104,18 @@ void *PYGCH_API_UNIQ_SYMBOL[] = {
   (void *) gc_disable, NULL,
   (void *) gc_isenabled, NULL
 };
+
+/**
+ * Wrapper around `Py_FinalizeEx` that calls `_PyGCH_NULLIFY_API`.
+ * 
+ * @returns `-1` on error, `0` otherwise.
+ */
+static int
+_PyGCH_FinalizeEx(void) {
+  int ret = Py_FinalizeEx();
+  _PyGCH_NULLIFY_API();
+  return ret;
+}
 
 /**
  * Imports `gc` if not imported, else no-op.
@@ -115,7 +147,7 @@ gc_unique_import(void) {
  * 
  * @param member_name Name of the member from `gc` to import
  * @param dest Address of the `PyObject *` to store the reference to the member
- * @returns `1` on sucess (`gc` member imported), `0` on failure.
+ * @returns `1` on success (`gc` member imported), `0` on failure.
  */
 static int
 gc_member_unique_import(char const *member_name, PyObject **dest) {
@@ -150,7 +182,7 @@ gc_enable(void) {
   // get gc.enable if pointer is NULL. exception set on error
   if (
     !PyGCH_gc_member_unique_import(
-      "enable", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 4)
+      "enable", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 5)
     )
   ) {
     return NULL;
@@ -161,7 +193,7 @@ gc_enable(void) {
    * reference count of 1, this is not a horrible thing to do.
    */
   PyObject *py_return = PyObject_CallObject(
-    (PyObject *) PYGCH_API_UNIQ_SYMBOL[4], NULL
+    (PyObject *) PYGCH_API_UNIQ_SYMBOL[5], NULL
   );
   Py_XDECREF(py_return);
   return py_return;
@@ -180,14 +212,14 @@ gc_disable(void) {
   // get gc.disable if pointer is NULL. exception set on error
   if (
     !PyGCH_gc_member_unique_import(
-      "disable", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 6)
+      "disable", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 7)
     )
   ) {
     return NULL;
   }
   // call gc.disable and Py_XDECREF its return value before returning
   PyObject *py_return = PyObject_CallObject(
-    (PyObject *) PYGCH_API_UNIQ_SYMBOL[6], NULL
+    (PyObject *) PYGCH_API_UNIQ_SYMBOL[7], NULL
   );
   Py_XDECREF(py_return);
   return py_return;
@@ -208,7 +240,7 @@ gc_isenabled(void) {
   // get gc.isenabled if pointer is NULL. exception set on error
   if (
     !PyGCH_gc_member_unique_import(
-      "isenabled", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 8)
+      "isenabled", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 9)
     )
   ) {
     return NULL;
@@ -218,7 +250,7 @@ gc_isenabled(void) {
    * Py_None, Py_True and Py_False start out with reference counts of 1.
    */
   PyObject *py_return = PyObject_CallObject(
-    (PyObject *) PYGCH_API_UNIQ_SYMBOL[8], NULL
+    (PyObject *) PYGCH_API_UNIQ_SYMBOL[9], NULL
   );
   Py_XDECREF(py_return);
   return py_return;
