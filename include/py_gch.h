@@ -42,6 +42,19 @@ extern "C" {
 // typedef gc flags as size_t
 typedef size_t gcflag_t;
 
+// macros to give the addresses for each member provided by the API. these
+// should not be used by users and considered internal to py_gch.h.
+#define _PyGCH_addr_gc (PYGCH_API_UNIQ_SYMBOL + 0)
+#define _PyGCH_addr_FinalizeEx (PYGCH_API_UNIQ_SYMBOL + 1)
+#define _PyGCH_addr_gc_unique_import (PYGCH_API_UNIQ_SYMBOL + 2)
+#define _PyGCH_addr_gc_member_unique_import (PYGCH_API_UNIQ_SYMBOL + 3)
+#define _PyGCH_addr_gc_enable (PYGCH_API_UNIQ_SYMBOL + 4)
+#define _PyGCH_addr_gc_disable (PYGCH_API_UNIQ_SYMBOL + 6)
+#define _PyGCH_addr_gc_isenabled (PYGCH_API_UNIQ_SYMBOL + 8)
+#define _PyGCH_addr_gc_collect_gen (PYGCH_API_UNIQ_SYMBOL + 10)
+#define _PyGCH_addr_gc_COLLECT_GEN (PYGCH_API_UNIQ_SYMBOL + 12)
+#define _PyGCH_addr_gc_get_flag (PYGCH_API_UNIQ_SYMBOL + 14)
+
 /*
  * macro for setting all initially NULL members in PYGCH_API_UNIQ_SYMBOL back
  * to NULL. this should never be called directly by a user, but exists since
@@ -51,34 +64,34 @@ typedef size_t gcflag_t;
  * need to be set to NULL again since the pointer values become invalidated.
  */
 #define _PyGCH_NULLIFY_API() \
-  PYGCH_API_UNIQ_SYMBOL[0] = PYGCH_API_UNIQ_SYMBOL[5] = \
-  PYGCH_API_UNIQ_SYMBOL[7] = PYGCH_API_UNIQ_SYMBOL[9] = \
-  PYGCH_API_UNIQ_SYMBOL[11] = PYGCH_API_UNIQ_SYMBOL[13] = NULL;
+  *_PyGCH_addr_gc = *(_PyGCH_addr_gc_enable + 1) = \
+  *(_PyGCH_addr_gc_disable + 1) = *(_PyGCH_addr_gc_isenabled + 1) = \
+  *(_PyGCH_addr_gc_collect_gen + 1) = *(_PyGCH_addr_gc_COLLECT_GEN + 1) = NULL;
 // replacements for Py_Finalize[Ex] that call _PyGCH_NULLFIY_API. note that we
 // cannot use a macro for Py_FinalizeEx if we want to keep the return value.
 #define PyGCH_Finalize() \
   Py_Finalize(); \
   _PyGCH_NULLIFY_API();
 #define PyGCH_FinalizeEx \
-  (*(int (*)(void)) PYGCH_API_UNIQ_SYMBOL[1])
+  (*(int (*)(void)) *_PyGCH_addr_FinalizeEx)
 // macros that give names to the py_gch.h API
 #define PyGCH_gc_imported() \
-  (((PyObject *) PYGCH_API_UNIQ_SYMBOL[0] == NULL) ? false : true)
+  (((PyObject *) *_PyGCH_addr_gc == NULL) ? false : true)
 #define PyGCH_gc_unique_import \
-  (*(int (*)(void)) PYGCH_API_UNIQ_SYMBOL[2])
+  (*(int (*)(void)) *_PyGCH_addr_gc_unique_import)
 #define PyGCH_gc_member_unique_import \
-  (*(int (*)(char const *, PyObject **)) PYGCH_API_UNIQ_SYMBOL[3])
+  (*(int (*)(char const *, PyObject **)) *_PyGCH_addr_gc_member_unique_import)
 // all gc function/member macros should have even indices
 #define PyGCH_gc_enable \
-  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[4])
+  (*(PyObject *(*)(void)) *_PyGCH_addr_gc_enable)
 #define PyGCH_gc_disable \
-  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[6])
+  (*(PyObject *(*)(void)) *_PyGCH_addr_gc_disable)
 #define PyGCH_gc_isenabled \
-  (*(PyObject *(*)(void)) PYGCH_API_UNIQ_SYMBOL[8])
+  (*(PyObject *(*)(void)) *_PyGCH_addr_gc_isenabled)
 #define PyGCH_gc_collect_gen \
-  (*(PyObject *(*)(Py_ssize_t)) PYGCH_API_UNIQ_SYMBOL[10])
+  (*(PyObject *(*)(Py_ssize_t)) *_PyGCH_addr_gc_collect_gen)
 #define PyGCH_gc_COLLECT_GEN \
-  (*(Py_ssize_t (*)(Py_ssize_t)) PYGCH_API_UNIQ_SYMBOL[12])
+  (*(Py_ssize_t (*)(Py_ssize_t)) *_PyGCH_addr_gc_COLLECT_GEN)
 #define PyGCH_gc_collect PyGCH_gc_collect_gen(-1)
 #define PyGCH_gc_COLLECT PyGCH_gc_COLLECT_GEN(-1)
 
@@ -154,8 +167,8 @@ _PyGCH_FinalizeEx(void) {
  */
 static int
 gc_unique_import(void) {
-  if (PYGCH_API_UNIQ_SYMBOL[0] == NULL) {
-    PYGCH_API_UNIQ_SYMBOL[0] = (void *) PyImport_ImportModule("gc");
+  if (*_PyGCH_addr_gc == NULL) {
+    *_PyGCH_addr_gc = (void *) PyImport_ImportModule("gc");
   }
   return PyGCH_gc_imported();
 }
@@ -184,10 +197,8 @@ gc_member_unique_import(char const *member_name, PyObject **dest) {
   if (*dest != NULL) {
     return true;
   }
-  // get attribute and write to dest. if err, *dest is NULL + exception set
-  *dest = PyObject_GetAttrString(
-    (PyObject *) PYGCH_API_UNIQ_SYMBOL[0], member_name
-  );
+  // get gc attribute and write to dest. if err, *dest is NULL + exception set
+  *dest = PyObject_GetAttrString((PyObject *) *_PyGCH_addr_gc, member_name);
   if (*dest == NULL) {
     return false;
   }
@@ -207,7 +218,7 @@ gc_enable(void) {
   // get gc.enable if pointer is NULL. exception set on error
   if (
     !gc_member_unique_import(
-      "enable", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 5)
+      "enable", (PyObject **) (_PyGCH_addr_gc_enable + 1)
     )
   ) {
     return NULL;
@@ -218,7 +229,7 @@ gc_enable(void) {
    * reference count of 1, this is not a horrible thing to do.
    */
   PyObject *py_return = PyObject_CallObject(
-    (PyObject *) PYGCH_API_UNIQ_SYMBOL[5], NULL
+    (PyObject *) *(_PyGCH_addr_gc_enable + 1), NULL
   );
   Py_XDECREF(py_return);
   return py_return;
@@ -237,14 +248,14 @@ gc_disable(void) {
   // get gc.disable if pointer is NULL. exception set on error
   if (
     !gc_member_unique_import(
-      "disable", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 7)
+      "disable", (PyObject **) (_PyGCH_addr_gc_disable + 1)
     )
   ) {
     return NULL;
   }
   // call gc.disable and Py_XDECREF its return value before returning
   PyObject *py_return = PyObject_CallObject(
-    (PyObject *) PYGCH_API_UNIQ_SYMBOL[7], NULL
+    (PyObject *) *(_PyGCH_addr_gc_disable + 1), NULL
   );
   Py_XDECREF(py_return);
   return py_return;
@@ -265,7 +276,7 @@ gc_isenabled(void) {
   // get gc.isenabled if pointer is NULL. exception set on error
   if (
     !gc_member_unique_import(
-      "isenabled", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 9)
+      "isenabled", (PyObject **) (_PyGCH_addr_gc_isenabled + 1)
     )
   ) {
     return NULL;
@@ -275,7 +286,7 @@ gc_isenabled(void) {
    * Py_None, Py_True and Py_False start out with reference counts of 1.
    */
   PyObject *py_return = PyObject_CallObject(
-    (PyObject *) PYGCH_API_UNIQ_SYMBOL[9], NULL
+    (PyObject *) *(_PyGCH_addr_gc_isenabled + 1), NULL
   );
   Py_XDECREF(py_return);
   return py_return;
@@ -294,7 +305,7 @@ gc_collect_gen(Py_ssize_t gen) {
   // get gc.collect if pointer is NULL. exception set on error
   if (
     !gc_member_unique_import(
-      "collect", (PyObject **) (PYGCH_API_UNIQ_SYMBOL + 11)
+      "collect", (PyObject **) (_PyGCH_addr_gc_collect_gen + 1)
     )
   ) {
     return NULL;
@@ -302,7 +313,7 @@ gc_collect_gen(Py_ssize_t gen) {
   // if gen == -1, then call without arguments and return value
   if (gen == -1) {
     return PyObject_CallObject(
-      (PyObject *) PYGCH_API_UNIQ_SYMBOL[11], NULL
+      (PyObject *) *(_PyGCH_addr_gc_collect_gen + 1), NULL
     );
   }
   // new argument tuple to pass to gc.collect
@@ -319,7 +330,7 @@ gc_collect_gen(Py_ssize_t gen) {
   PyTuple_SET_ITEM(args, 0, gen_);
   // call gc.collect with args and get return value (NULL on error)
   PyObject *res = PyObject_CallObject(
-    (PyObject *) PYGCH_API_UNIQ_SYMBOL[11], args
+    (PyObject *) *(_PyGCH_addr_gc_collect_gen + 1), args
   );
   // clean up and return
   Py_DECREF(args);
