@@ -29,8 +29,8 @@ Python C extension modules
 
 TBA.
 
-C/C++ code embedding the Python interpreter
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C/C++ code ``#include``\ ing ``Python.h``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 TBA.
 
