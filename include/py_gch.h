@@ -40,7 +40,7 @@ extern "C" {
 #endif /* PYGCH_API_UNIQ_SYMBOL */
 
 // typedef gc flags as size_t
-typedef size_t gcflag_t;
+typedef size_t PyGCH_flag_t;
 
 // macros to give the addresses for each member provided by the API. these
 // should not be used by users and considered internal to py_gch.h.
@@ -48,12 +48,14 @@ typedef size_t gcflag_t;
 #define _PyGCH_addr_FinalizeEx (PYGCH_API_UNIQ_SYMBOL + 1)
 #define _PyGCH_addr_gc_unique_import (PYGCH_API_UNIQ_SYMBOL + 2)
 #define _PyGCH_addr_gc_member_unique_import (PYGCH_API_UNIQ_SYMBOL + 3)
-#define _PyGCH_addr_gc_enable (PYGCH_API_UNIQ_SYMBOL + 4)
-#define _PyGCH_addr_gc_disable (PYGCH_API_UNIQ_SYMBOL + 6)
-#define _PyGCH_addr_gc_isenabled (PYGCH_API_UNIQ_SYMBOL + 8)
-#define _PyGCH_addr_gc_collect_gen (PYGCH_API_UNIQ_SYMBOL + 10)
-#define _PyGCH_addr_gc_COLLECT_GEN (PYGCH_API_UNIQ_SYMBOL + 12)
-#define _PyGCH_addr_gc_get_flag (PYGCH_API_UNIQ_SYMBOL + 14)
+#define _PyGCH_addr_gc_get_garbage (PYGCH_API_UNIQ_SYMBOL + 4)
+#define _PyGCH_addr_gc_get_callbacks (PYGCH_API_UNIQ_SYMBOL + 6)
+#define _PyGCH_addr_gc_get_flag (PYGCH_API_UNIQ_SYMBOL + 8)
+#define _PyGCH_addr_gc_enable (PYGCH_API_UNIQ_SYMBOL + 14)
+#define _PyGCH_addr_gc_disable (PYGCH_API_UNIQ_SYMBOL + 16)
+#define _PyGCH_addr_gc_isenabled (PYGCH_API_UNIQ_SYMBOL + 18)
+#define _PyGCH_addr_gc_collect_gen (PYGCH_API_UNIQ_SYMBOL + 20)
+#define _PyGCH_addr_gc_COLLECT_GEN (PYGCH_API_UNIQ_SYMBOL + 22)
 
 /*
  * macro for setting all initially NULL members in PYGCH_API_UNIQ_SYMBOL back
@@ -64,9 +66,19 @@ typedef size_t gcflag_t;
  * need to be set to NULL again since the pointer values become invalidated.
  */
 #define _PyGCH_NULLIFY_API() \
-  *_PyGCH_addr_gc = *(_PyGCH_addr_gc_enable + 1) = \
-  *(_PyGCH_addr_gc_disable + 1) = *(_PyGCH_addr_gc_isenabled + 1) = \
-  *(_PyGCH_addr_gc_collect_gen + 1) = *(_PyGCH_addr_gc_COLLECT_GEN + 1) = NULL;
+  *_PyGCH_addr_gc = \
+  *(_PyGCH_addr_gc_get_garbage + 1) = \
+  *(_PyGCH_addr_gc_get_callbacks + 1) = \
+  *(_PyGCH_addr_gc_get_flag + 1) = \
+  *(_PyGCH_addr_gc_get_flag + 2) = \
+  *(_PyGCH_addr_gc_get_flag + 3) = \
+  *(_PyGCH_addr_gc_get_flag + 4) = \
+  *(_PyGCH_addr_gc_get_flag + 5) = \
+  *(_PyGCH_addr_gc_enable + 1) = \
+  *(_PyGCH_addr_gc_disable + 1) = \
+  *(_PyGCH_addr_gc_isenabled + 1) = \
+  *(_PyGCH_addr_gc_collect_gen + 1) = \
+  *(_PyGCH_addr_gc_COLLECT_GEN + 1) = NULL;
 // replacements for Py_Finalize[Ex] that call _PyGCH_NULLFIY_API. note that we
 // cannot use a macro for Py_FinalizeEx if we want to keep the return value.
 #define PyGCH_Finalize() \
@@ -74,14 +86,36 @@ typedef size_t gcflag_t;
   _PyGCH_NULLIFY_API();
 #define PyGCH_FinalizeEx \
   (*(int (*)(void)) *_PyGCH_addr_FinalizeEx)
-// macros that give names to the py_gch.h API
+// macros that give names to the py_gch.h API utility functions
 #define PyGCH_gc_imported() \
   (((PyObject *) *_PyGCH_addr_gc == NULL) ? false : true)
 #define PyGCH_gc_unique_import \
   (*(int (*)(void)) *_PyGCH_addr_gc_unique_import)
 #define PyGCH_gc_member_unique_import \
   (*(int (*)(char const *, PyObject **)) *_PyGCH_addr_gc_member_unique_import)
-// all gc function/member macros should have even indices
+// macro to give name to flag retrieval function
+#define _PyGCH_gc_get_flag \
+  (*(PyGCH_flag_t (*)(char const *, void **)) *_PyGCH_addr_gc_get_flag)
+// macros for the gc flags. these work even if gc flag values change.
+#define PyGCH_gc_DEBUG_STATS \
+  _PyGCH_gc_get_flag("DEBUG_STATS", _PyGCH_addr_gc_get_flag + 1)
+#define PyGCH_gc_DEBUG_COLLECTABLE \
+  _PyGCH_gc_get_flag("DEBUG_COLLECTABLE", _PyGCH_addr_gc_get_flag + 2)
+#define PyGCH_gc_DEBUG_UNCOLLECTABLE \
+  _PyGCH_gc_get_flag("DEBUG_UNCOLLECTABLE", _PyGCH_addr_gc_get_flag + 3)
+#define PyGCH_gc_DEBUG_SAVEALL \
+  _PyGCH_gc_get_flag("DEBUG_SAVEALL", _PyGCH_addr_gc_get_flag + 4)
+#define PyGCH_gc_DEBUG_LEAK \
+  _PyGCH_gc_get_flag("DEBUG_LEAK", _PyGCH_addr_gc_get_flag + 5)
+// macro to give names to gc.garbage, gc.callbacks retrieval functions
+#define _PyGCH_gc_get_garbage \
+  (*(PyObject *(*)(void)) *_PyGCH_addr_gc_get_garbage)
+#define _PyGCH_gc_get_callbacks \
+  (*(PyObject *(*)(void)) *_PyGCH_addr_gc_get_callbacks)
+// macros for gc.garbage, gc.callbacks borrowed references
+#define PyGCH_gc_garbage _PyGCH_gc_get_garbage()
+#define PyGCH_gc_callbacks _PyGCH_gc_get_callbacks()
+// macros corresponding to py_gch.h API functions that wrap gc functions
 #define PyGCH_gc_enable \
   (*(PyObject *(*)(void)) *_PyGCH_addr_gc_enable)
 #define PyGCH_gc_disable \
@@ -92,8 +126,8 @@ typedef size_t gcflag_t;
   (*(PyObject *(*)(Py_ssize_t)) *_PyGCH_addr_gc_collect_gen)
 #define PyGCH_gc_COLLECT_GEN \
   (*(Py_ssize_t (*)(Py_ssize_t)) *_PyGCH_addr_gc_COLLECT_GEN)
-#define PyGCH_gc_collect PyGCH_gc_collect_gen(-1)
-#define PyGCH_gc_COLLECT PyGCH_gc_COLLECT_GEN(-1)
+#define PyGCH_gc_collect() PyGCH_gc_collect_gen(-1)
+#define PyGCH_gc_COLLECT() PyGCH_gc_COLLECT_GEN(-1)
 
 #ifdef PYGCH_NO_DEFINE
 extern void **PYGCH_API_UNIQ_SYMBOL
@@ -105,12 +139,14 @@ extern void **PYGCH_API_UNIQ_SYMBOL
 static int _PyGCH_FinalizeEx(void);
 static int gc_unique_import(void);
 static int gc_member_unique_import(char const *, PyObject **);
+static PyObject *gc_get_garbage(void);
+static PyObject *gc_get_callbacks(void);
+static PyGCH_flag_t gc_get_flag(char const *, void **);
 static PyObject *gc_enable(void);
 static PyObject *gc_disable(void);
 static PyObject *gc_isenabled(void);
 static PyObject *gc_collect_gen(Py_ssize_t);
 static Py_ssize_t gc_COLLECT_GEN(Py_ssize_t);
-static gcflag_t gc_get_flag(char const *, void **);
 
 /*
  * note: API scheduled for big overhaul! individual wrappers are to also take
@@ -129,18 +165,24 @@ void *PYGCH_API_UNIQ_SYMBOL[] = {
   // utility functions provided by py_gch.h
   (void *) gc_unique_import,
   (void *) gc_member_unique_import,
+  // functions used to retrieve gc.garbage and gc.callbacks. the NULL elements
+  // are the slots to cache PyObject * to gc.garbage, gc.callbacks
+  (void *) gc_get_garbage, NULL,       /* 4, 5 */
+  (void *) gc_get_callbacks, NULL,     /* 6, 7 */
+  // function to get flag values from gc + pointers to cache the flag values
+  (void *) gc_get_flag,
+  NULL, NULL, NULL, NULL, NULL,        /* 9, 10, 11, 12, 13 */
   /*
-   * function pointers for the API. each two elements composes a "unit", where
-   * each unit is the pair (function pointer, PyObject *). The PyObject *
+   * function pointer pairs for the API. each two elements composes a "unit",
+   * where each unit is the pair (function pointer, PyObject *). The PyObject *
    * represents the imported function/member from gc and the function pointer
    * is its corresponding C API retrieval function provided by py_gch.h.
    */
-  (void *) gc_enable, NULL,            /*  4,  5 */    /* C func, PyObject * */
-  (void *) gc_disable, NULL,           /*  6,  7 */
-  (void *) gc_isenabled, NULL,         /*  8,  9 */
-  (void *) gc_collect_gen, NULL,       /* 10, 11 */
-  (void *) gc_COLLECT_GEN, NULL,       /* 12, 13 (13 always NULL) */
-  (void *) gc_get_flag, NULL           /* 14, 15 */
+  (void *) gc_enable, NULL,            /* 14, 15 */    /* C func, PyObject * */
+  (void *) gc_disable, NULL,           /* 16, 17 */
+  (void *) gc_isenabled, NULL,         /* 18, 19 */
+  (void *) gc_collect_gen, NULL,       /* 20, 21 */
+  (void *) gc_COLLECT_GEN, NULL,       /* 22, 23 (23 always NULL) */
 };
 
 /**
@@ -369,15 +411,15 @@ gc_COLLECT_GEN(Py_ssize_t gen) {
  * 
  * @param flag_name Name of the flag to retrieve
  * @param api_addr `void **` address to store the flag value as a `void *`
- * @returns Flag value as a `gcflag_t` or `0` on failure with set exceptio.
+ * @returns Flag value as a `PyGCH_flag_t` or `0` on failure with set exception.
  *     If a flag is supposed to be zero, use `PyErr_Occurred` to check whether
  *     an exception has been set or not.
  */
-static gcflag_t
+static PyGCH_flag_t
 gc_get_flag(char const *flag_name, void **api_addr) {
-  // if *api_addr is not NULL, cast value to gcflag_t and return
+  // if *api_addr is not NULL, cast value to PyGCH_flag_t and return
   if (*api_addr != NULL) {
-    return (gcflag_t) *api_addr;
+    return (PyGCH_flag_t) *api_addr;
   }
   // else get gc.flag_name if *api_addr is NULL. exception set on error
   if (!gc_member_unique_import(flag_name, (PyObject **) api_addr)) {
@@ -388,7 +430,7 @@ gc_get_flag(char const *flag_name, void **api_addr) {
    * this since the ref is no longer needed and in case conversion fails so
    * that this function can be called again to re-import the flag member.
    */
-  gcflag_t flag = PyLong_AsUnsignedLongMask((PyObject *) *api_addr);
+  PyGCH_flag_t flag = PyLong_AsUnsignedLongMask((PyObject *) *api_addr);
   Py_DECREF((PyObject *) *api_addr);
   *api_addr = NULL;
   // -1 and exception set on error.
@@ -398,6 +440,60 @@ gc_get_flag(char const *flag_name, void **api_addr) {
   // write flag to api_addr, casting it to a void *, and return flag value
   *api_addr = (void *) flag;
   return flag;
+}
+
+/**
+ * Returns a borrowed reference to `gc.garbage`.
+ * 
+ * After the initial retrieval of `gc.garbage` using `PyObject_GetAttrString`,
+ * further calls to `gc_get_garbage` return a cached pointer to `gc.garbage`.
+ * 
+ * @returns Borrowed reference to `gc.garbage`, with an exception set and
+ *     `NULL` returned on error.
+ */
+static PyObject *
+gc_get_garbage(void) {
+  // if pointer is not NULL, just return its value
+  if (*(_PyGCH_addr_gc_get_garbage + 1) != NULL) {
+    return (PyObject *) *(_PyGCH_addr_gc_get_garbage + 1);
+  }
+  // get gc.garbage if pointer is NULL. exception set on error
+  if (
+    !gc_member_unique_import(
+      "garbage", (PyObject **) (_PyGCH_addr_gc_get_garbage + 1)
+    )
+  ) {
+    return NULL;
+  }
+  // return pointer to gc.garbage
+  return (PyObject *) *(_PyGCH_addr_gc_get_garbage + 1);
+}
+
+/**
+ * Returns a borrowed reference to `gc.callbacks`.
+ * 
+ * After initial retrieval of `gc.callbacks` using `PyObject_GetAttrString`,
+ * further calls to `gc_get_callbacks` return a cached pointer to `gc.garbage`.
+ * 
+ * @returns Borrowed reference to `gc.callbacks`, with an exception set and
+ *     `NULL` returned on error.
+ */
+static PyObject *
+gc_get_callbacks(void) {
+  // if pointer is not NULL, just return its value
+  if (*(_PyGCH_addr_gc_get_callbacks + 1) != NULL) {
+    return (PyObject *) *(_PyGCH_addr_gc_get_callbacks + 1);
+  }
+  // get gc.garbage if pointer is NULL. exception set on error
+  if (
+    !gc_member_unique_import(
+      "callbacks", (PyObject **) (_PyGCH_addr_gc_get_callbacks + 1)
+    )
+  ) {
+    return NULL;
+  }
+  // return pointer to gc.garbage
+  return (PyObject *) *(_PyGCH_addr_gc_get_callbacks + 1);
 }
 
 #endif /* PYGCH_NO_DEFINE */
