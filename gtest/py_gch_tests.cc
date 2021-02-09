@@ -120,16 +120,20 @@ TEST_F(PyGCHTest, testCollectGens) {
   PyObject *n_no_reach_ = PyGCH_gc_collect_gen(0);
   ASSERT_NE(nullptr, n_no_reach_)
     << "PyGCH_gc_collect_gen(0) returned NULL";
+  Py_DECREF(n_no_reach_);
   n_no_reach_ = PyGCH_gc_collect_gen(1);
   ASSERT_NE(nullptr, n_no_reach_)
     << "PyGCH_gc_collect_gen(1) returned NULL";
+  Py_DECREF(n_no_reach_);
   n_no_reach_ = PyGCH_gc_collect_gen(2);
   ASSERT_NE(nullptr, n_no_reach_)
     << "PyGCH_gc_collect_gen(2) returned NULL";
+  Py_DECREF(n_no_reach_);
   // collect all generations
   n_no_reach_ = PyGCH_gc_collect_gen(-1);
   ASSERT_NE(nullptr, n_no_reach_)
     << "PyGCH_gc_collect_gen(-1) returned NULL";
+  Py_DECREF(n_no_reach_);
   // this should raise an exception, so n_no_reach_ should be NULL
   /*
   n_no_reach_ = PyGCH_gc_collect_gen(333);
