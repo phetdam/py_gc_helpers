@@ -13,7 +13,10 @@ py_gch
    by two ``assert`` statements checking whether the error indicator has been
    set or not. One unit test purposefully sets the error indicator by passing
    an invalid generation number; this may have caused the crash, but the
-   effects don't seem to be reproducible.
+   effects don't seem to be reproducible. It is possible, however, to call
+   the equivalent of ``gc.collect`` to collect all generations by calling the
+   `PyGC_Collect`__ method which is exposed in the Python C API, but it simply
+   wraps ``gc_collect_with_callback`` and does not take arguments.
 
 A lightweight API for enabling/disabling Python garbage collection implemented
 in the `gc`__ module from Python C extension code or C/C++ code embedding the
@@ -27,6 +30,17 @@ are no C analogues to calling ``gc.disable``, ``gc.enable`` and so on [#]_.
 
 .. __: https://github.com/python/cpython/blob/main/Modules/
    gcmodule.c#L1407-L1417
+
+.. __: https://github.com/python/cpython/blob/main/Modules/
+   gcmodule.c#L2079-L2105
+
+.. __: https://docs.python.org/3/library/gc.html
+
+.. __: https://github.com/python/cpython/blob/master/Modules/gcmodule.c
+
+.. [#] ``gc.disable`` calls `gc_disable_impl`__, which is static.
+
+.. __: https://github.com/python/cpython/blob/master/Modules/gcmodule.c#L1499
 
 
 Quickstart
@@ -50,11 +64,3 @@ Contents
 --------
 
 TBA.
-
-.. __: https://docs.python.org/3/library/gc.html
-
-.. __: https://github.com/python/cpython/blob/master/Modules/gcmodule.c
-
-.. [#] ``gc.disable`` calls `gc_disable_impl`__, which is static.
-
-.. __: https://github.com/python/cpython/blob/master/Modules/gcmodule.c#L1499
