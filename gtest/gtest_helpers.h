@@ -24,7 +24,7 @@ namespace gtest_helpers {
 // fixture for tests that require the Python C API
 class PyReqTest: public testing::Test {
   protected:
-  // calls Py_Initialize to start the Python interpreter
+  // calls Py_Initialize to start the (debug) Python interpreter
   void SetUp() override {
     Py_Initialize();
     // print error if not initialized

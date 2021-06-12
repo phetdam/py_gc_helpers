@@ -352,8 +352,10 @@ gc_collect_gen(Py_ssize_t gen) {
   ) {
     return NULL;
   }
-  // if gen == -1, then call without arguments and return value
+  // if gen == -1, then call without arguments and return value. note that we
+  // must clear error indicator, as set error indicator causes fatal crash
   if (gen == -1) {
+    PyErr_Clear();
     return PyObject_CallObject(
       (PyObject *) *(_PyGCH_addr_gc_collect_gen + 1), NULL
     );
@@ -370,7 +372,9 @@ gc_collect_gen(Py_ssize_t gen) {
   }
   // steal reference using PyTuple_SET_ITEM
   PyTuple_SET_ITEM(args, 0, gen_);
-  // call gc.collect with args and get return value (NULL on error)
+  // call gc.collect with args and get return value (NULL on error). again,
+  // must clear error indicator (if set) to prevent fatal crash
+  PyErr_Clear();
   PyObject *res = PyObject_CallObject(
     (PyObject *) *(_PyGCH_addr_gc_collect_gen + 1), args
   );

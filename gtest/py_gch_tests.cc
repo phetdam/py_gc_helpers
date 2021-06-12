@@ -135,11 +135,9 @@ TEST_F(PyGCHTest, testCollectGens) {
     << "PyGCH_gc_collect_gen(-1) returned NULL";
   Py_DECREF(n_no_reach_);
   // this should raise an exception, so n_no_reach_ should be NULL
-  /*
   n_no_reach_ = PyGCH_gc_collect_gen(333);
   ASSERT_EQ(nullptr, n_no_reach_)
     << "PyGCH_gc_collect_gen(333) did not return NULL";
-  */
   // repeat process for PyGCH_gc_COLLECT_GEN. -1 on error
   Py_ssize_t n_no_reach = PyGCH_gc_COLLECT_GEN(0);
   ASSERT_NE(-1, n_no_reach)
@@ -153,11 +151,9 @@ TEST_F(PyGCHTest, testCollectGens) {
   n_no_reach = PyGCH_gc_COLLECT_GEN(-1);
   ASSERT_NE(-1, n_no_reach)
     << "PyGCH_gc_COLLECT_GEN(-1) returned -1";
-  /*
   n_no_reach = PyGCH_gc_COLLECT_GEN(333);
   ASSERT_EQ(-1, n_no_reach)
     << "PyGCH_gc_COLLECT_GEN(333) did not return -1";
-  */
 }
 
 } /* namespace */
